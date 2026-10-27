@@ -48,3 +48,21 @@ server/src/routes/           auth, catalog (barang+lokasi), inventory (stok, mov
 client/src/pages/            Dashboard, Stock, Movements, Log, Items, Locations, Users, Profile
 client/src/components/       ui/ (shadcn), common.tsx (PageHeader, Kpi, OptionSelect, dll), Layout.tsx (sidebar)
 ```
+
+## Market (beli barang)
+
+Seperti `inventory-bbc`: member memilih barang bergambar, memasukkannya ke keranjang, lalu mengirim pesanan.
+
+- **Role `member`** hanya melihat Market dan pesanannya sendiri. Admin/staff memproses pesanan di menu *Pesanan*.
+- Pesanan berstatus **Menunggu**. Stok langsung *dipesankan* (tidak bisa dijual dua kali), tetapi baru keluar dari stok saat disetujui.
+- Saat **disetujui**, barang keluar dari lokasi bertanda *Dijual di Market* (stok terbanyak dulu) dan tercatat di Riwayat. **Ditolak/dibatalkan** → stok dilepas; membatalkan pesanan yang sudah disetujui mengembalikan barang ke lokasi asal. Staff tidak boleh menyetujui pesanannya sendiri (kecuali admin).
+- Harga disalin ke pesanan, jadi mengubah harga tidak mengubah pesanan lama.
+- Atur di **Katalog Barang** (harga, gambar, *Dijual di Market*) dan **Lokasi** (*Dijual di Market*).
+
+Isi katalog dengan senjata, amunisi, dan perlengkapan dari BBC (gambar di `client/public/items/`):
+
+```bash
+npm run db:init                       # upgrade skema bila database dibuat dari versi lama
+npm run db:seed-market                # katalog + harga (stok 0)
+npm run db:seed-market -- --stock     # sekaligus stok awal seperti BBC
+```

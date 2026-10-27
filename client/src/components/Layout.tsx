@@ -11,6 +11,8 @@ import {
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
+  Receipt,
+  Store,
   User,
   Users,
   type LucideIcon,
@@ -29,13 +31,26 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useAuth } from '@/contexts/AuthContext'
 
-type NavItem = { to: string; label: string; icon: LucideIcon; admin?: boolean }
-type NavGroup = { title: string; items: NavItem[] }
+type Access = 'staff' | 'admin'
+type NavItem = { to: string; label: string; icon: LucideIcon; access?: Access }
+type NavGroup = { title: string; items: NavItem[]; access?: Access }
 
 const groups: NavGroup[] = [
-  { title: 'Utama', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
+  {
+    title: 'Utama',
+    access: 'staff',
+    items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    title: 'Market',
+    items: [
+      { to: '/market', label: 'Market', icon: Store },
+      { to: '/orders', label: 'Pesanan', icon: Receipt },
+    ],
+  },
   {
     title: 'Inventory',
+    access: 'staff',
     items: [
       { to: '/stock', label: 'Stok', icon: Boxes },
       { to: '/movements', label: 'Masuk / Keluar', icon: PackagePlus },
@@ -44,7 +59,7 @@ const groups: NavGroup[] = [
       { to: '/locations', label: 'Lokasi', icon: MapPin },
     ],
   },
-  { title: 'Admin', items: [{ to: '/users', label: 'Pengguna', icon: Users, admin: true }] },
+  { title: 'Admin', access: 'admin', items: [{ to: '/users', label: 'Pengguna', icon: Users }] },
 ]
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -96,14 +111,20 @@ function UserMenu() {
 }
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { isAdmin } = useAuth()
-  const visible = useMemo(
-    () =>
-      groups
-        .map((g) => ({ ...g, items: g.items.filter((i) => !i.admin || isAdmin) }))
-        .filter((g) => g.items.length),
-    [isAdmin],
-  )
+  const { isAdmin, isStaff, user } = useAuth()
+  const visible = useMemo(() => {
+    const allowed = (a?: Access) => !a || (a === 'admin' ? isAdmin : isStaff)
+    return groups
+      .filter((g) => allowed(g.access))
+      .map((g) => ({
+        ...g,
+        items: g.items
+          .filter((i) => allowed(i.access))
+          // Member hanya melihat pesanannya sendiri.
+          .map((i) => (i.to === '/orders' && user?.role === 'member' ? { ...i, label: 'Pesanan Saya' } : i)),
+      }))
+      .filter((g) => g.items.length)
+  }, [isAdmin, isStaff, user?.role])
 
   return (
     <div className="flex h-full w-60 flex-col">

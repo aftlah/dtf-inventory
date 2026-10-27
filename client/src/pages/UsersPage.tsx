@@ -110,7 +110,7 @@ export function UsersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{draft?.id ? 'Ubah pengguna' : 'Tambah pengguna'}</DialogTitle>
-            <DialogDescription>Admin mengelola katalog, lokasi, dan pengguna. Staff mencatat stok.</DialogDescription>
+            <DialogDescription>Admin mengelola katalog, lokasi, dan pengguna. Staff mencatat stok dan memproses pesanan. Member hanya bisa belanja di Market.</DialogDescription>
           </DialogHeader>
           {draft ? (
             <form id="user-form" onSubmit={save} className="flex flex-col gap-4">
@@ -138,6 +138,7 @@ export function UsersPage() {
                   onChange={(role) => setDraft({ ...draft, role: role as Role })}
                   disabled={isSelf}
                   options={[
+                    { value: 'member', label: 'Member (hanya Market)' },
                     { value: 'staff', label: 'Staff' },
                     { value: 'admin', label: 'Admin' },
                   ]}

@@ -19,7 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,8 +32,8 @@ import { locationKinds } from '@/lib/format'
 import type { Location } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
 
-type Draft = { id?: number; name: string; kind: string; notes: string }
-const empty: Draft = { name: '', kind: 'warehouse', notes: '' }
+type Draft = { id?: number; name: string; kind: string; notes: string; sell_in_market: boolean }
+const empty: Draft = { name: '', kind: 'warehouse', notes: '', sell_in_market: false }
 
 export function LocationsPage() {
   const { isAdmin } = useAuth()
@@ -77,7 +79,7 @@ export function LocationsPage() {
     }
   }
 
-  const set = (k: keyof Draft) => (e: { target: { value: string } }) =>
+  const set = (k: 'name' | 'notes') => (e: { target: { value: string } }) =>
     setDraft((d) => (d ? { ...d, [k]: e.target.value } : d))
 
   return (
@@ -98,6 +100,7 @@ export function LocationsPage() {
             <TableRow>
               <TableHead>Nama</TableHead>
               <TableHead>Jenis</TableHead>
+              <TableHead>Market</TableHead>
               <TableHead>Catatan</TableHead>
               {isAdmin ? <TableHead className="w-24" /> : null}
             </TableRow>
@@ -109,6 +112,11 @@ export function LocationsPage() {
                 <TableCell>
                   <ToneBadge>{locationKinds[l.kind] ?? l.kind}</ToneBadge>
                 </TableCell>
+                <TableCell>
+                  <ToneBadge tone={l.sell_in_market ? 'good' : 'default'}>
+                    {l.sell_in_market ? 'Dijual' : 'Tidak'}
+                  </ToneBadge>
+                </TableCell>
                 <TableCell className="text-muted-foreground">{l.notes ?? '—'}</TableCell>
                 {isAdmin ? (
                   <TableCell>
@@ -117,7 +125,7 @@ export function LocationsPage() {
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Ubah ${l.name}`}
-                        onClick={() => setDraft({ id: l.id, name: l.name, kind: l.kind, notes: l.notes ?? '' })}
+                        onClick={() => setDraft({ id: l.id, name: l.name, kind: l.kind, notes: l.notes ?? '', sell_in_market: l.sell_in_market })}
                       >
                         <Pencil />
                       </Button>
@@ -157,6 +165,20 @@ export function LocationsPage() {
                   options={Object.entries(locationKinds).map(([value, label]) => ({ value, label }))}
                 />
               </Field>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="loc-market"
+                  checked={draft.sell_in_market}
+                  onCheckedChange={(v) => setDraft({ ...draft, sell_in_market: v === true })}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="loc-market" className="flex-col items-start gap-0.5">
+                  Dijual di Market
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Stok di lokasi ini yang tampil dan dijual di Market.
+                  </span>
+                </Label>
+              </div>
               <Field label="Catatan">
                 <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
               </Field>

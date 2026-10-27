@@ -5,7 +5,7 @@ import { HttpError, duplicateAs, str, wrap } from '../util.js'
 
 export const usersRouter = Router()
 
-const ROLES = ['admin', 'staff']
+const ROLES = ['admin', 'staff', 'member']
 
 function parseRole(role) {
   if (!ROLES.includes(role)) throw new HttpError(400, 'Role tidak valid')

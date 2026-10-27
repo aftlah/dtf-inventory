@@ -7,6 +7,13 @@ export const catalogRouter = Router()
 
 /* ---------- Items ---------- */
 
+function imageUrl(value) {
+  const v = str(value, { field: 'Gambar', max: 255 })
+  if (v && !/^(\/[\w./-]+|https?:\/\/\S+)$/.test(v))
+    throw new HttpError(400, 'Gambar harus berupa path (/items/foo.png) atau URL http(s)')
+  return v
+}
+
 function itemBody(b) {
   return {
     name: str(b?.name, { field: 'Nama', max: 150, required: true }),
@@ -14,17 +21,21 @@ function itemBody(b) {
     unit: str(b?.unit, { field: 'Satuan', max: 20 }) ?? 'pcs',
     min_stock: posInt(b?.min_stock ?? 0, 'Stok minimum', { min: 0 }),
     notes: str(b?.notes, { field: 'Catatan', max: 500 }),
+    price: posInt(b?.price ?? 0, 'Harga', { min: 0 }),
+    image_url: imageUrl(b?.image_url),
+    in_market: b?.in_market ? 1 : 0,
   }
 }
+
+const ITEM_COLUMNS = 'id, name, category, unit, min_stock, notes, price, image_url, in_market'
 
 catalogRouter.get(
   '/items',
   wrap(async (_req, res) => {
-    res.json(
-      await query(
-        'SELECT id, name, category, unit, min_stock, notes FROM items WHERE deleted_at IS NULL ORDER BY name',
-      ),
+    const rows = await query(
+      `SELECT ${ITEM_COLUMNS} FROM items WHERE deleted_at IS NULL ORDER BY name`,
     )
+    res.json(rows.map((r) => ({ ...r, price: Number(r.price), in_market: !!r.in_market })))
   }),
 )
 
@@ -35,8 +46,9 @@ catalogRouter.post(
     const d = itemBody(req.body)
     try {
       const r = await query(
-        'INSERT INTO items (name, category, unit, min_stock, notes) VALUES (?, ?, ?, ?, ?)',
-        [d.name, d.category, d.unit, d.min_stock, d.notes],
+        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market],
       )
       res.status(201).json({ id: r.insertId })
     } catch (e) {
@@ -53,8 +65,9 @@ catalogRouter.put(
     let r
     try {
       r = await query(
-        'UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=? WHERE id=? AND deleted_at IS NULL',
-        [d.name, d.category, d.unit, d.min_stock, d.notes, req.params.id],
+        `UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=?, price=?, image_url=?, in_market=?
+          WHERE id=? AND deleted_at IS NULL`,
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama barang sudah ada')
@@ -73,6 +86,12 @@ catalogRouter.delete(
       [req.params.id],
     )
     if (Number(total) > 0) throw new HttpError(409, 'Barang masih punya stok, kosongkan dulu')
+    const [{ pending }] = await query(
+      `SELECT COUNT(*) AS pending FROM order_items oi JOIN orders o ON o.id = oi.order_id
+        WHERE oi.item_id = ? AND o.status = 'pending'`,
+      [req.params.id],
+    )
+    if (Number(pending) > 0) throw new HttpError(409, 'Barang masih ada di pesanan yang menunggu')
     const r = await query('UPDATE items SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [
       req.params.id,
     ])
@@ -88,17 +107,17 @@ function locationBody(b) {
     name: str(b?.name, { field: 'Nama', max: 100, required: true }),
     kind: str(b?.kind, { field: 'Jenis', max: 30 }) ?? 'warehouse',
     notes: str(b?.notes, { field: 'Catatan', max: 500 }),
+    sell_in_market: b?.sell_in_market ? 1 : 0,
   }
 }
 
 catalogRouter.get(
   '/locations',
   wrap(async (_req, res) => {
-    res.json(
-      await query(
-        'SELECT id, name, kind, notes FROM locations WHERE deleted_at IS NULL ORDER BY name',
-      ),
+    const rows = await query(
+      'SELECT id, name, kind, notes, sell_in_market FROM locations WHERE deleted_at IS NULL ORDER BY name',
     )
+    res.json(rows.map((r) => ({ ...r, sell_in_market: !!r.sell_in_market })))
   }),
 )
 
@@ -108,11 +127,10 @@ catalogRouter.post(
   wrap(async (req, res) => {
     const d = locationBody(req.body)
     try {
-      const r = await query('INSERT INTO locations (name, kind, notes) VALUES (?, ?, ?)', [
-        d.name,
-        d.kind,
-        d.notes,
-      ])
+      const r = await query(
+        'INSERT INTO locations (name, kind, notes, sell_in_market) VALUES (?, ?, ?, ?)',
+        [d.name, d.kind, d.notes, d.sell_in_market],
+      )
       res.status(201).json({ id: r.insertId })
     } catch (e) {
       throw duplicateAs(e, 'Nama lokasi sudah ada')
@@ -128,8 +146,8 @@ catalogRouter.put(
     let r
     try {
       r = await query(
-        'UPDATE locations SET name=?, kind=?, notes=? WHERE id=? AND deleted_at IS NULL',
-        [d.name, d.kind, d.notes, req.params.id],
+        'UPDATE locations SET name=?, kind=?, notes=?, sell_in_market=? WHERE id=? AND deleted_at IS NULL',
+        [d.name, d.kind, d.notes, d.sell_in_market, req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama lokasi sudah ada')

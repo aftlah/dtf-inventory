@@ -6,6 +6,7 @@ type AuthState = {
   user: User | null
   loading: boolean
   isAdmin: boolean
+  isStaff: boolean
   signIn: (username: string, password: string) => Promise<void>
   signOut: () => void
 }
@@ -41,7 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, isAdmin: user?.role === 'admin', signIn, signOut }),
+    () => ({
+      user,
+      loading,
+      isAdmin: user?.role === 'admin',
+      isStaff: user?.role === 'admin' || user?.role === 'staff',
+      signIn,
+      signOut,
+    }),
     [user, loading, signIn, signOut],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,4 +1,4 @@
-import type { LogType } from './types'
+import type { LogType, OrderStatus } from './types'
 
 export const formatNumber = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
@@ -22,4 +22,14 @@ export const locationKinds: Record<string, string> = {
   stash: 'Brankas',
   vehicle: 'Kendaraan',
   other: 'Lainnya',
+}
+
+export const formatRupiah = (n: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+
+export const orderStatusLabel: Record<OrderStatus, string> = {
+  pending: 'Menunggu',
+  approved: 'Disetujui',
+  rejected: 'Ditolak',
+  cancelled: 'Dibatalkan',
 }

@@ -1,4 +1,4 @@
-// Membuat database + tabel (schema.sql) dan admin pertama. Aman diulang.
+// Membuat database + tabel (schema.sql), meng-upgrade database lama, dan membuat admin pertama. Aman diulang.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,6 +22,28 @@ await conn.query(
 )
 await conn.query(`USE \`${dbName}\``)
 await conn.query(fs.readFileSync(path.join(dir, '../schema.sql'), 'utf8'))
+
+// Upgrade database yang dibuat dari versi skema sebelumnya (CREATE TABLE IF NOT EXISTS tidak menambah kolom).
+async function addColumn(table, column, ddl) {
+  const [rows] = await conn.query(
+    'SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?',
+    [dbName, table, column],
+  )
+  if (rows.length) return
+  await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${ddl}`)
+  console.log(`+ kolom ${table}.${column}`)
+}
+
+await addColumn('items', 'price', 'BIGINT UNSIGNED NOT NULL DEFAULT 0')
+await addColumn('items', 'image_url', 'VARCHAR(255) NULL')
+await addColumn('items', 'in_market', 'TINYINT(1) NOT NULL DEFAULT 0')
+await addColumn('locations', 'sell_in_market', 'TINYINT(1) NOT NULL DEFAULT 0')
+await addColumn('inventory_logs', 'ref_type', 'VARCHAR(20) NULL')
+await addColumn('inventory_logs', 'ref_id', 'BIGINT UNSIGNED NULL')
+await conn.query(
+  `ALTER TABLE users MODIFY role ENUM('admin','staff','member') NOT NULL DEFAULT 'staff'`,
+)
+
 console.log(`Skema siap di database "${dbName}"`)
 
 const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM users')

@@ -2,10 +2,11 @@ import express from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { requireAdmin, requireAuth } from './auth.js'
+import { requireAdmin, requireAuth, requireStaff } from './auth.js'
 import { authRouter } from './routes/auth.js'
 import { catalogRouter } from './routes/catalog.js'
 import { inventoryRouter } from './routes/inventory.js'
+import { marketRouter, ordersRouter } from './routes/orders.js'
 import { usersRouter } from './routes/users.js'
 
 const app = express()
@@ -14,7 +15,11 @@ app.use(express.json({ limit: '100kb' }))
 
 app.use('/api/auth', authRouter)
 app.use('/api/users', requireAuth, requireAdmin, usersRouter)
-app.use('/api', requireAuth, catalogRouter, inventoryRouter)
+// Semua akun (termasuk member): Market dan pesanan. Pembatasan per-aksi ada di dalam router.
+app.use('/api/market', requireAuth, marketRouter)
+app.use('/api/orders', requireAuth, ordersRouter)
+// Sisanya hanya admin/staff.
+app.use('/api', requireAuth, requireStaff, catalogRouter, inventoryRouter)
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan' }))
 
 // Produksi: sajikan hasil build frontend (client/dist) dengan fallback SPA.

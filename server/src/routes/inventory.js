@@ -134,7 +134,8 @@ inventoryRouter.get(
              JOIN items i ON i.id = s.item_id AND i.deleted_at IS NULL
              JOIN locations l ON l.id = s.location_id AND l.deleted_at IS NULL) AS units,
           (SELECT COUNT(*) FROM inventory_logs WHERE type = 'in' AND created_at >= CURDATE()) AS in_today,
-          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'out' AND created_at >= CURDATE()) AS out_today`,
+          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'out' AND created_at >= CURDATE()) AS out_today,
+          (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders`,
     )
     const lowStock = await query(
       `SELECT i.id, i.name, i.unit, i.min_stock, COALESCE(SUM(s.qty), 0) AS qty
