@@ -24,8 +24,8 @@ export const locationKinds: Record<string, string> = {
   other: 'Lainnya',
 }
 
-export const formatRupiah = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+export const formatMoney = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 
 export const orderStatusLabel: Record<OrderStatus, string> = {
   pending: 'Menunggu',

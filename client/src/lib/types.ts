@@ -72,6 +72,9 @@ export type Order = {
   decided_at: string | null
   cancelled_by_name: string | null
   cancelled_at: string | null
+  paid: boolean
+  paid_at: string | null
+  paid_by_name: string | null
   lines: { item_id: number; item_name: string; image_url: string | null; qty: number; unit_price: number }[]
   allocations: { item_id: number; qty: number; location_name: string }[]
 }

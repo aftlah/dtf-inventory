@@ -40,6 +40,9 @@ await addColumn('items', 'in_market', 'TINYINT(1) NOT NULL DEFAULT 0')
 await addColumn('locations', 'sell_in_market', 'TINYINT(1) NOT NULL DEFAULT 0')
 await addColumn('inventory_logs', 'ref_type', 'VARCHAR(20) NULL')
 await addColumn('inventory_logs', 'ref_id', 'BIGINT UNSIGNED NULL')
+await addColumn('orders', 'paid', 'TINYINT(1) NOT NULL DEFAULT 0')
+await addColumn('orders', 'paid_at', 'TIMESTAMP NULL')
+await addColumn('orders', 'paid_by_name', 'VARCHAR(100) NULL')
 await conn.query(
   `ALTER TABLE users MODIFY role ENUM('admin','staff','member') NOT NULL DEFAULT 'staff'`,
 )

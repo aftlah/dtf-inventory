@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS items (
   unit       VARCHAR(20)  NOT NULL DEFAULT 'pcs',
   min_stock  INT UNSIGNED NOT NULL DEFAULT 0,
   notes      VARCHAR(500) NULL,
-  price      BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga jual di Market (Rp)
+  price      BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga jual di Market (USD)
   image_url  VARCHAR(255) NULL,
   in_market  TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS orders (
   decided_at        TIMESTAMP NULL,
   cancelled_by_name VARCHAR(100) NULL,
   cancelled_at      TIMESTAMP NULL,
+  paid              TINYINT(1) NOT NULL DEFAULT 0,  -- sudah dibayar? (ditandai staff)
+  paid_at           TIMESTAMP NULL,
+  paid_by_name      VARCHAR(100) NULL,
   CONSTRAINT orders_user_fk FOREIGN KEY (user_id) REFERENCES users (id),
   KEY orders_status_idx (status, created_at),
   KEY orders_user_idx (user_id, created_at)

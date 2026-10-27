@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
-import { formatNumber, formatRupiah } from '@/lib/format'
+import { formatNumber, formatMoney } from '@/lib/format'
 import type { Item } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
 
@@ -144,7 +144,7 @@ export function ItemsPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{i.category ?? '—'}</TableCell>
                 <TableCell>{i.unit}</TableCell>
-                <TableCell className="text-right tabular-nums">{i.price > 0 ? formatRupiah(i.price) : '—'}</TableCell>
+                <TableCell className="text-right tabular-nums">{i.price > 0 ? formatMoney(i.price) : '—'}</TableCell>
                 <TableCell>
                   <ToneBadge tone={i.in_market ? 'good' : 'default'}>{i.in_market ? 'Dijual' : 'Tidak'}</ToneBadge>
                 </TableCell>
@@ -213,7 +213,7 @@ export function ItemsPage() {
                 <Input type="number" min={0} step={1} value={draft.min_stock} onChange={set('min_stock')} required />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Harga jual (Rp)">
+                <Field label="Harga jual ($)">
                   <Input type="number" min={0} step={1} value={draft.price} onChange={set('price')} required />
                 </Field>
                 <Field label="Gambar" hint="Contoh: /items/smg.png atau URL.">

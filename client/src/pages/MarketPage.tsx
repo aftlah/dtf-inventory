@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCart } from '@/contexts/CartContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
-import { formatNumber, formatRupiah } from '@/lib/format'
+import { formatNumber, formatMoney } from '@/lib/format'
 import type { MarketItem } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
@@ -56,7 +56,7 @@ function ProductCard({ item }: { item: MarketItem }) {
       <CardContent className="flex flex-1 flex-col gap-3 p-3">
         <div className="space-y-0.5">
           <p className="leading-tight font-semibold">{item.name}</p>
-          <p className="text-base leading-tight font-semibold text-primary">{formatRupiah(item.price)}</p>
+          <p className="text-base leading-tight font-semibold text-primary">{formatMoney(item.price)}</p>
         </div>
 
         <div className="mt-auto space-y-2">
@@ -205,7 +205,7 @@ export function MarketPage() {
               {cart.count}
             </span>
           </span>
-          <span className="text-sm">{formatRupiah(total)}</span>
+          <span className="text-sm">{formatMoney(total)}</span>
         </button>
       ) : null}
 
@@ -227,7 +227,7 @@ export function MarketPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatRupiah(l.item.price)} × {formatNumber(l.qty)}
+                      {formatMoney(l.item.price)} × {formatNumber(l.qty)}
                     </p>
                   </div>
                   <Input
@@ -255,7 +255,7 @@ export function MarketPage() {
                 <Textarea placeholder="Catatan untuk staff (opsional)" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
                 <div className="flex justify-between text-sm font-semibold">
                   <span>Total</span>
-                  <span>{formatRupiah(total)}</span>
+                  <span>{formatMoney(total)}</span>
                 </div>
               </>
             ) : null}

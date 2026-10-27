@@ -110,6 +110,9 @@ ordersRouter.get(
       where.push('o.status = ?')
       params.push(req.query.status)
     }
+    // Pesanan yang masih harus dibayar: belum lunas dan masih berlaku (bukan ditolak/dibatalkan).
+    if (req.query.payment === 'unpaid') where.push(`o.paid = 0 AND o.status IN ('pending', 'approved')`)
+    else if (req.query.payment === 'paid') where.push('o.paid = 1')
     const orders = await query(
       `SELECT o.* FROM orders o ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
         ORDER BY o.id DESC LIMIT 200`,
@@ -140,6 +143,7 @@ ordersRouter.get(
       orders.map((o) => ({
         ...o,
         total: Number(o.total),
+        paid: !!o.paid,
         lines: (linesBy.get(o.id) ?? []).map((l) => ({ ...l, unit_price: Number(l.unit_price) })),
         allocations: allocBy.get(o.id) ?? [],
       })),
@@ -234,6 +238,25 @@ ordersRouter.post(
       await conn.query(
         `UPDATE orders SET status = 'rejected', decided_by_name = ?, decided_at = NOW() WHERE id = ?`,
         [req.user.name, order.id],
+      )
+    })
+    res.json({ ok: true })
+  }),
+)
+
+// Staff menandai pesanan sudah / belum dibayar. Hanya pesanan yang masih berlaku yang bisa ditandai lunas.
+ordersRouter.post(
+  '/:id/payment',
+  requireStaff,
+  wrap(async (req, res) => {
+    const paid = req.body?.paid === true
+    await withTx(async (conn) => {
+      const order = await lockOrder(conn, req.params.id)
+      if (paid && !['pending', 'approved'].includes(order.status))
+        throw new HttpError(409, 'Pesanan yang ditolak atau dibatalkan tidak perlu dibayar')
+      await conn.query(
+        'UPDATE orders SET paid = ?, paid_at = ?, paid_by_name = ? WHERE id = ?',
+        paid ? [1, new Date(), req.user.name, order.id] : [0, null, null, order.id],
       )
     })
     res.json({ ok: true })
