@@ -1,7 +1,7 @@
 # DTF Inventory
 
 Website inventory internal, mengikuti struktur dan tampilan `inventory-bbc` (versi inti saja).
-Stack: React + Vite + TypeScript + Tailwind v4 (client) · Node/Express (server) · **MySQL 8**.
+Stack: React + Vite + TypeScript + Tailwind v4 + shadcn/ui (Radix) + sonner (client) · Node/Express (server) · **MySQL 8**.
 
 ## Fitur
 
@@ -46,5 +46,5 @@ server/schema.sql            skema MySQL (users, items, locations, inventory_log
 server/scripts/init-db.js    buat DB + skema + admin pertama
 server/src/routes/           auth, catalog (barang+lokasi), inventory (stok, movements, log, dashboard), users
 client/src/pages/            Dashboard, Stock, Movements, Log, Items, Locations, Users, Profile
-client/src/components/       ui.tsx (komponen dasar), Layout.tsx (sidebar)
+client/src/components/       ui/ (shadcn), common.tsx (PageHeader, Kpi, OptionSelect, dll), Layout.tsx (sidebar)
 ```

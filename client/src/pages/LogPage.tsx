@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import {
-  Badge,
-  Button,
   EmptyState,
   ErrorState,
   LoadingState,
+  OptionSelect,
   PageHeader,
   PageStack,
-  Select,
-  Table,
-  Td,
-  Th,
-} from '@/components/ui'
+  ToneBadge,
+} from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { formatDateTime, formatNumber, logTypeLabel } from '@/lib/format'
 import type { Item, Location, LogRow } from '@/lib/types'
@@ -35,38 +33,35 @@ export function LogPage() {
     return api<{ rows: LogRow[]; hasMore: boolean }>(`/logs?${p}`)
   }, [itemId, locationId, type, page])
 
-  const filter = (setter: (v: string) => void) => (e: { target: { value: string } }) => {
-    setter(e.target.value)
+  const filter = (setter: (v: string) => void) => (v: string) => {
+    setter(v)
     setPage(0)
   }
 
   return (
     <PageStack>
       <PageHeader title="Riwayat" subtitle="Semua pergerakan barang. Riwayat tidak bisa diubah atau dihapus.">
-        <Select className="sm:w-44" value={itemId} onChange={filter(setItemId)}>
-          <option value="">Semua barang</option>
-          {items.data?.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-            </option>
-          ))}
-        </Select>
-        <Select className="sm:w-40" value={locationId} onChange={filter(setLocationId)}>
-          <option value="">Semua lokasi</option>
-          {locations.data?.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </Select>
-        <Select className="sm:w-40" value={type} onChange={filter(setType)}>
-          <option value="">Semua tipe</option>
-          {Object.entries(logTypeLabel).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </Select>
+        <OptionSelect
+          className="sm:w-44"
+          value={itemId}
+          onChange={filter(setItemId)}
+          emptyLabel="Semua barang"
+          options={(items.data ?? []).map((i) => ({ value: String(i.id), label: i.name }))}
+        />
+        <OptionSelect
+          className="sm:w-40"
+          value={locationId}
+          onChange={filter(setLocationId)}
+          emptyLabel="Semua lokasi"
+          options={(locations.data ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
+        />
+        <OptionSelect
+          className="sm:w-40"
+          value={type}
+          onChange={filter(setType)}
+          emptyLabel="Semua tipe"
+          options={Object.entries(logTypeLabel).map(([value, label]) => ({ value, label }))}
+        />
       </PageHeader>
 
       {logs.error ? (
@@ -78,39 +73,41 @@ export function LogPage() {
       ) : (
         <>
           <Table>
-            <thead>
-              <tr>
-                <Th>Waktu</Th>
-                <Th>Barang</Th>
-                <Th>Lokasi</Th>
-                <Th>Tipe</Th>
-                <Th className="text-right">Jumlah</Th>
-                <Th>Oleh</Th>
-                <Th>Catatan</Th>
-              </tr>
-            </thead>
-            <tbody>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Waktu</TableHead>
+                <TableHead>Barang</TableHead>
+                <TableHead>Lokasi</TableHead>
+                <TableHead>Tipe</TableHead>
+                <TableHead className="text-right">Jumlah</TableHead>
+                <TableHead>Oleh</TableHead>
+                <TableHead>Catatan</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {logs.data.rows.map((r) => (
-                <tr key={r.id}>
-                  <Td className="whitespace-nowrap text-muted-foreground">{formatDateTime(r.created_at)}</Td>
-                  <Td className="font-medium">{r.item_name}</Td>
-                  <Td>{r.location_name}</Td>
-                  <Td>
-                    <Badge tone={r.type === 'in' || r.type === 'transfer_in' ? 'good' : 'bad'}>
+                <TableRow key={r.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {formatDateTime(r.created_at)}
+                  </TableCell>
+                  <TableCell className="font-medium">{r.item_name}</TableCell>
+                  <TableCell>{r.location_name}</TableCell>
+                  <TableCell>
+                    <ToneBadge tone={r.type === 'in' || r.type === 'transfer_in' ? 'good' : 'bad'}>
                       {logTypeLabel[r.type]}
-                    </Badge>
-                  </Td>
-                  <Td className="text-right tabular-nums">
+                    </ToneBadge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
                     {r.type === 'in' || r.type === 'transfer_in' ? '+' : '−'}
                     {formatNumber(r.qty)} {r.unit}
-                  </Td>
-                  <Td>{r.user_name}</Td>
-                  <Td className="max-w-56 truncate text-muted-foreground" title={r.note ?? undefined}>
+                  </TableCell>
+                  <TableCell>{r.user_name}</TableCell>
+                  <TableCell className="max-w-56 truncate text-muted-foreground" title={r.note ?? undefined}>
                     {r.note ?? '—'}
-                  </Td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
+            </TableBody>
           </Table>
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>

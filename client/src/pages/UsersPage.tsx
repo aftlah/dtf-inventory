@@ -1,20 +1,27 @@
 import { useState, type FormEvent } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Loader2, Pencil, Plus } from 'lucide-react'
 import {
-  Badge,
-  Button,
   ErrorState,
   Field,
-  Input,
   LoadingState,
-  Modal,
+  OptionSelect,
   PageHeader,
   PageStack,
-  Select,
-  Table,
-  Td,
-  Th,
-} from '@/components/ui'
+  ToneBadge,
+} from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
@@ -62,31 +69,30 @@ export function UsersPage() {
       </PageHeader>
 
       <Table>
-        <thead>
-          <tr>
-            <Th>Nama</Th>
-            <Th>Username</Th>
-            <Th>Role</Th>
-            <Th>Status</Th>
-            <Th className="w-16" />
-          </tr>
-        </thead>
-        <tbody>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nama</TableHead>
+            <TableHead>Username</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-16" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {data.map((u) => (
-            <tr key={u.id}>
-              <Td className="font-medium">{u.name}</Td>
-              <Td className="text-muted-foreground">{u.username}</Td>
-              <Td>
-                <Badge tone={u.role === 'admin' ? 'warn' : 'default'}>{u.role}</Badge>
-              </Td>
-              <Td>
-                <Badge tone={u.active ? 'good' : 'bad'}>{u.active ? 'Aktif' : 'Nonaktif'}</Badge>
-              </Td>
-              <Td>
+            <TableRow key={u.id}>
+              <TableCell className="font-medium">{u.name}</TableCell>
+              <TableCell className="text-muted-foreground">{u.username}</TableCell>
+              <TableCell>
+                <ToneBadge tone={u.role === 'admin' ? 'warn' : 'default'}>{u.role}</ToneBadge>
+              </TableCell>
+              <TableCell>
+                <ToneBadge tone={u.active ? 'good' : 'bad'}>{u.active ? 'Aktif' : 'Nonaktif'}</ToneBadge>
+              </TableCell>
+              <TableCell>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="size-8"
+                  size="icon-sm"
                   aria-label={`Ubah ${u.name}`}
                   onClick={() =>
                     setDraft({ id: u.id, name: u.name, username: u.username, role: u.role, active: !!u.active, password: '' })
@@ -94,85 +100,85 @@ export function UsersPage() {
                 >
                   <Pencil />
                 </Button>
-              </Td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
+        </TableBody>
       </Table>
 
-      <Modal
-        open={draft !== null}
-        title={draft?.id ? 'Ubah pengguna' : 'Tambah pengguna'}
-        onClose={() => setDraft(null)}
-        footer={
-          <>
+      <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{draft?.id ? 'Ubah pengguna' : 'Tambah pengguna'}</DialogTitle>
+            <DialogDescription>Admin mengelola katalog, lokasi, dan pengguna. Staff mencatat stok.</DialogDescription>
+          </DialogHeader>
+          {draft ? (
+            <form id="user-form" onSubmit={save} className="flex flex-col gap-4">
+              <Field label="Nama">
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  maxLength={100}
+                  required
+                  autoFocus
+                />
+              </Field>
+              <Field label="Username" hint={draft.id ? 'Username tidak bisa diubah.' : 'Huruf kecil, angka, titik, strip.'}>
+                <Input
+                  value={draft.username}
+                  onChange={(e) => setDraft({ ...draft, username: e.target.value })}
+                  maxLength={50}
+                  disabled={!!draft.id}
+                  required
+                />
+              </Field>
+              <Field label="Role">
+                <OptionSelect
+                  value={draft.role}
+                  onChange={(role) => setDraft({ ...draft, role: role as Role })}
+                  disabled={isSelf}
+                  options={[
+                    { value: 'staff', label: 'Staff' },
+                    { value: 'admin', label: 'Admin' },
+                  ]}
+                />
+              </Field>
+              <Field
+                label={draft.id ? 'Password baru (kosongkan bila tidak diubah)' : 'Password'}
+                hint="Minimal 8 karakter."
+              >
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={draft.password}
+                  onChange={(e) => setDraft({ ...draft, password: e.target.value })}
+                  minLength={8}
+                  required={!draft.id}
+                />
+              </Field>
+              {draft.id ? (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="user-active"
+                    checked={draft.active}
+                    disabled={isSelf}
+                    onCheckedChange={(v) => setDraft({ ...draft, active: v === true })}
+                  />
+                  <Label htmlFor="user-active">Akun aktif</Label>
+                </div>
+              ) : null}
+            </form>
+          ) : null}
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDraft(null)}>
               Batal
             </Button>
             <Button type="submit" form="user-form" disabled={busy}>
-              {busy ? 'Menyimpan…' : 'Simpan'}
+              {busy ? <Loader2 className="animate-spin" /> : null} {busy ? 'Menyimpan…' : 'Simpan'}
             </Button>
-          </>
-        }
-      >
-        {draft ? (
-          <form id="user-form" onSubmit={save} className="flex flex-col gap-4">
-            <Field label="Nama">
-              <Input
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                maxLength={100}
-                required
-                autoFocus
-              />
-            </Field>
-            <Field label="Username" hint={draft.id ? 'Username tidak bisa diubah.' : 'Huruf kecil, angka, titik, strip.'}>
-              <Input
-                value={draft.username}
-                onChange={(e) => setDraft({ ...draft, username: e.target.value })}
-                maxLength={50}
-                disabled={!!draft.id}
-                required
-              />
-            </Field>
-            <Field label="Role" hint="Admin: kelola katalog, lokasi, dan pengguna. Staff: catat stok.">
-              <Select
-                value={draft.role}
-                onChange={(e) => setDraft({ ...draft, role: e.target.value as Role })}
-                disabled={isSelf}
-              >
-                <option value="staff">Staff</option>
-                <option value="admin">Admin</option>
-              </Select>
-            </Field>
-            <Field
-              label={draft.id ? 'Password baru (kosongkan bila tidak diubah)' : 'Password'}
-              hint="Minimal 8 karakter."
-            >
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={draft.password}
-                onChange={(e) => setDraft({ ...draft, password: e.target.value })}
-                minLength={8}
-                required={!draft.id}
-              />
-            </Field>
-            {draft.id ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--primary)]"
-                  checked={draft.active}
-                  disabled={isSelf}
-                  onChange={(e) => setDraft({ ...draft, active: e.target.checked })}
-                />
-                Akun aktif
-              </label>
-            ) : null}
-          </form>
-        ) : null}
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageStack>
   )
 }

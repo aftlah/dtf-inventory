@@ -1,39 +1,61 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+}
+
+@theme {
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Palet diambil dari logo DTF: oranye #ff7a1a, putih, hitam/abu gelap. */
 :root {
+  --radius: 0.75rem;
   --background: #0b0a09;
   --foreground: #f6f3ee;
   --card: #131110;
+  --card-foreground: #f6f3ee;
+  --popover: #181513;
+  --popover-foreground: #f6f3ee;
   --primary: #ff7a1a;
   --primary-foreground: #1a0b00;
   --secondary: #1e1b18;
+  --secondary-foreground: #f6f3ee;
   --muted: #181513;
   --muted-foreground: #a39a8f;
   --accent: #25201b;
+  --accent-foreground: #f6f3ee;
   --destructive: #ef4444;
+  --destructive-foreground: #1c0505;
   --border: rgba(255, 140, 50, 0.16);
   --input: rgba(255, 140, 50, 0.26);
   --ring: #ff7a1a;
-  --radius: 0.75rem;
 }
 
 * {
@@ -58,15 +80,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button:not(:disabled) {
-  cursor: pointer;
-}
-
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
@@ -74,6 +93,14 @@ button:not(:disabled) {
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 140, 50, 0.55);
+}
+
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
 }
 
 .app-shell {
@@ -84,21 +111,8 @@ button:not(:disabled) {
     var(--background);
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(1.25rem) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.toast-enter {
-  animation: toast-in 0.28s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .toast-enter {
-    animation: none;
-  }
+.table-scroll {
+  -webkit-overflow-scrolling: touch;
+  max-height: min(36rem, 70dvh);
+  overflow-y: auto;
 }

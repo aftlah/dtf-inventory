@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
-import { LoadingState } from '@/components/ui'
+import { LoadingState } from '@/components/common'
 import { useAuth } from '@/contexts/AuthContext'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ItemsPage } from '@/pages/ItemsPage'

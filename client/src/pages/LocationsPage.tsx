@@ -1,23 +1,29 @@
 import { useState, type FormEvent } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
-  Badge,
-  Button,
   EmptyState,
   ErrorState,
   Field,
-  Input,
   LoadingState,
-  Modal,
+  OptionSelect,
   PageHeader,
   PageStack,
-  Select,
-  Table,
-  Td,
-  Textarea,
-  Th,
-} from '@/components/ui'
+  ToneBadge,
+} from '@/components/common'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
 import { locationKinds } from '@/lib/format'
@@ -30,6 +36,7 @@ const empty: Draft = { name: '', kind: 'warehouse', notes: '' }
 export function LocationsPage() {
   const { isAdmin } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const { data, error, loading, reload } = useAsync(() => api<Location[]>('/locations'), [])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
@@ -55,7 +62,12 @@ export function LocationsPage() {
   }
 
   async function remove(loc: Location) {
-    if (!window.confirm(`Hapus lokasi "${loc.name}"?`)) return
+    const ok = await confirm({
+      title: `Hapus lokasi "${loc.name}"?`,
+      description: 'Hanya bisa bila lokasi sudah kosong. Riwayat lama tetap tersimpan.',
+      confirmLabel: 'Hapus',
+    })
+    if (!ok) return
     try {
       await api(`/locations/${loc.id}`, { method: 'DELETE' })
       toast.success('Dihapus')
@@ -82,29 +94,28 @@ export function LocationsPage() {
         <EmptyState />
       ) : (
         <Table>
-          <thead>
-            <tr>
-              <Th>Nama</Th>
-              <Th>Jenis</Th>
-              <Th>Catatan</Th>
-              {isAdmin ? <Th className="w-24" /> : null}
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nama</TableHead>
+              <TableHead>Jenis</TableHead>
+              <TableHead>Catatan</TableHead>
+              {isAdmin ? <TableHead className="w-24" /> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {data.map((l) => (
-              <tr key={l.id}>
-                <Td className="font-medium">{l.name}</Td>
-                <Td>
-                  <Badge>{locationKinds[l.kind] ?? l.kind}</Badge>
-                </Td>
-                <Td className="text-muted-foreground">{l.notes ?? '—'}</Td>
+              <TableRow key={l.id}>
+                <TableCell className="font-medium">{l.name}</TableCell>
+                <TableCell>
+                  <ToneBadge>{locationKinds[l.kind] ?? l.kind}</ToneBadge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{l.notes ?? '—'}</TableCell>
                 {isAdmin ? (
-                  <Td>
+                  <TableCell>
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="size-8"
+                        size="icon-sm"
                         aria-label={`Ubah ${l.name}`}
                         onClick={() => setDraft({ id: l.id, name: l.name, kind: l.kind, notes: l.notes ?? '' })}
                       >
@@ -112,57 +123,55 @@ export function LocationsPage() {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive"
+                        size="icon-sm"
+                        className="text-destructive hover:text-destructive"
                         aria-label={`Hapus ${l.name}`}
                         onClick={() => remove(l)}
                       >
                         <Trash2 />
                       </Button>
                     </div>
-                  </Td>
+                  </TableCell>
                 ) : null}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </Table>
       )}
 
-      <Modal
-        open={draft !== null}
-        title={draft?.id ? 'Ubah lokasi' : 'Tambah lokasi'}
-        onClose={() => setDraft(null)}
-        footer={
-          <>
+      <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{draft?.id ? 'Ubah lokasi' : 'Tambah lokasi'}</DialogTitle>
+            <DialogDescription>Tempat barang disimpan.</DialogDescription>
+          </DialogHeader>
+          {draft ? (
+            <form id="loc-form" onSubmit={save} className="flex flex-col gap-4">
+              <Field label="Nama">
+                <Input value={draft.name} onChange={set('name')} maxLength={100} required autoFocus />
+              </Field>
+              <Field label="Jenis">
+                <OptionSelect
+                  value={draft.kind}
+                  onChange={(kind) => setDraft({ ...draft, kind })}
+                  options={Object.entries(locationKinds).map(([value, label]) => ({ value, label }))}
+                />
+              </Field>
+              <Field label="Catatan">
+                <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
+              </Field>
+            </form>
+          ) : null}
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDraft(null)}>
               Batal
             </Button>
             <Button type="submit" form="loc-form" disabled={busy}>
-              {busy ? 'Menyimpan…' : 'Simpan'}
+              {busy ? <Loader2 className="animate-spin" /> : null} {busy ? 'Menyimpan…' : 'Simpan'}
             </Button>
-          </>
-        }
-      >
-        {draft ? (
-          <form id="loc-form" onSubmit={save} className="flex flex-col gap-4">
-            <Field label="Nama">
-              <Input value={draft.name} onChange={set('name')} maxLength={100} required autoFocus />
-            </Field>
-            <Field label="Jenis">
-              <Select value={draft.kind} onChange={set('kind')}>
-                {Object.entries(locationKinds).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Catatan">
-              <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
-            </Field>
-          </form>
-        ) : null}
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageStack>
   )
 }

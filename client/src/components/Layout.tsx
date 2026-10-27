@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeftRight,
   Boxes,
+  ChevronsUpDown,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -12,22 +13,27 @@ import {
   PanelLeftOpen,
   User,
   Users,
-  X,
   type LucideIcon,
 } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { brand } from '@/brand'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui'
 
 type NavItem = { to: string; label: string; icon: LucideIcon; admin?: boolean }
 type NavGroup = { title: string; items: NavItem[] }
 
 const groups: NavGroup[] = [
-  {
-    title: 'Utama',
-    items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }],
-  },
+  { title: 'Utama', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
   {
     title: 'Inventory',
     items: [
@@ -38,26 +44,59 @@ const groups: NavGroup[] = [
       { to: '/locations', label: 'Lokasi', icon: MapPin },
     ],
   },
-  {
-    title: 'Admin',
-    items: [{ to: '/users', label: 'Pengguna', icon: Users, admin: true }],
-  },
-  {
-    title: 'Akun',
-    items: [{ to: '/profile', label: 'Profil', icon: User }],
-  },
+  { title: 'Admin', items: [{ to: '/users', label: 'Pengguna', icon: Users, admin: true }] },
 ]
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+    'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
     isActive
       ? 'bg-primary/15 text-primary shadow-[inset_2px_0_0_0_var(--primary)]'
       : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground',
   ].join(' ')
 
+function UserMenu() {
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover:bg-accent/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <span
+            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary"
+            aria-hidden
+          >
+            {(user?.name ?? '?').trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{user?.name}</span>
+            <span className="block truncate text-xs text-muted-foreground capitalize">{user?.role}</span>
+          </span>
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <span className="block text-sm font-medium">{user?.name}</span>
+          <span className="block text-xs text-muted-foreground">@{user?.username}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/profile')}>
+          <User /> Profil &amp; password
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={signOut}>
+          <LogOut /> Keluar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, isAdmin, signOut } = useAuth()
+  const { isAdmin } = useAuth()
   const visible = useMemo(
     () =>
       groups
@@ -70,7 +109,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full w-60 flex-col">
       <div className="border-b border-border px-4 pt-5 pb-4 text-center">
         {brand.logo ? (
-          <img src={brand.logo} alt={brand.name} className="mx-auto w-36 max-w-full" />
+          <img src={brand.logo} alt={brand.name} className="mx-auto w-32 max-w-full" />
         ) : (
           <p className="text-3xl font-extrabold tracking-tight text-primary">{brand.name}</p>
         )}
@@ -96,21 +135,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
       <div className="border-t border-border p-3">
-        <div className="mb-2 flex items-center gap-2.5 px-1">
-          <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary"
-            aria-hidden
-          >
-            {(user?.name ?? '?').trim().charAt(0).toUpperCase()}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium">{user?.name}</span>
-            <span className="block truncate text-xs text-muted-foreground">{user?.role}</span>
-          </span>
-        </div>
-        <Button variant="outline" className="w-full" onClick={signOut}>
-          <LogOut /> Keluar
-        </Button>
+        <UserMenu />
       </div>
     </div>
   )
@@ -164,26 +189,14 @@ export function Layout() {
         <Sidebar />
       </aside>
 
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden" onMouseDown={() => setMobileOpen(false)}>
-          <div className="absolute inset-0 bg-black/70" />
-          <div
-            className="relative h-full w-60 border-r border-border bg-card"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 size-8"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Tutup menu"
-            >
-              <X />
-            </Button>
-            <Sidebar onNavigate={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      ) : null}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="left" className="w-64 p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Menu</SheetTitle>
+          </SheetHeader>
+          <Sidebar onNavigate={() => setMobileOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/80 px-3 py-2.5 backdrop-blur sm:px-5">

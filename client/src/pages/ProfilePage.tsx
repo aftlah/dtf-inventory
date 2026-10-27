@@ -1,5 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Card, Field, Input, PageHeader, PageStack } from '@/components/ui'
+import { Loader2 } from 'lucide-react'
+import { Field, PageHeader, PageStack } from '@/components/common'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
@@ -35,22 +39,26 @@ export function ProfilePage() {
   return (
     <PageStack>
       <PageHeader title="Profil" subtitle={`${user?.name} · @${user?.username} · ${user?.role}`} />
-      <Card className="max-w-md p-5">
-        <h3 className="mb-4 text-sm font-bold">Ganti password</h3>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <Field label="Password saat ini">
-            <Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
-          </Field>
-          <Field label="Password baru" hint="Minimal 8 karakter.">
-            <Input type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
-          </Field>
-          <Field label="Ulangi password baru">
-            <Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-          </Field>
-          <Button type="submit" disabled={busy}>
-            {busy ? 'Menyimpan…' : 'Simpan'}
-          </Button>
-        </form>
+      <Card className="max-w-md">
+        <CardHeader>
+          <CardTitle>Ganti password</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            <Field label="Password saat ini">
+              <Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
+            </Field>
+            <Field label="Password baru" hint="Minimal 8 karakter.">
+              <Input type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
+            </Field>
+            <Field label="Ulangi password baru">
+              <Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+            </Field>
+            <Button type="submit" disabled={busy} className="h-10">
+              {busy ? <Loader2 className="animate-spin" /> : null} {busy ? 'Menyimpan…' : 'Simpan'}
+            </Button>
+          </form>
+        </CardContent>
       </Card>
     </PageStack>
   )

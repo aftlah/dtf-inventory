@@ -1,20 +1,20 @@
 import { ArrowDownToLine, ArrowUpFromLine, Boxes, MapPin, Package } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  Badge,
-  Card,
   EmptyState,
   ErrorState,
   Kpi,
   LoadingState,
   PageHeader,
   PageStack,
-} from '@/components/ui'
+  ToneBadge,
+} from '@/components/common'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { formatDateTime, formatNumber, logTypeLabel } from '@/lib/format'
 import type { Dashboard } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
-import { useAuth } from '@/contexts/AuthContext'
 
 export function DashboardPage() {
   const { user } = useAuth()
@@ -37,58 +37,66 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-4">
-          <h3 className="mb-3 text-sm font-bold">Stok menipis</h3>
-          {lowStock.length === 0 ? (
-            <EmptyState text="Semua stok aman" />
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {lowStock.map((i) => (
-                <li key={i.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="truncate font-medium">{i.name}</span>
-                  <span className="flex shrink-0 items-center gap-2 tabular-nums">
-                    <span className="text-destructive">
-                      {formatNumber(i.qty)} {i.unit}
+        <Card>
+          <CardHeader>
+            <CardTitle>Stok menipis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lowStock.length === 0 ? (
+              <EmptyState text="Semua stok aman" />
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {lowStock.map((i) => (
+                  <li key={i.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                    <span className="truncate font-medium">{i.name}</span>
+                    <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                      <span className="font-semibold text-destructive">
+                        {formatNumber(i.qty)} {i.unit}
+                      </span>
+                      <span className="text-xs text-muted-foreground">min {formatNumber(i.min_stock)}</span>
                     </span>
-                    <span className="text-xs text-muted-foreground">min {formatNumber(i.min_stock)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
         </Card>
 
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold">Aktivitas terbaru</h3>
-            <Link to="/log" className="text-xs text-primary hover:underline">
-              Lihat semua
-            </Link>
-          </div>
-          {recent.length === 0 ? (
-            <EmptyState text="Belum ada aktivitas" />
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {recent.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{r.item_name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {r.location_name} · {r.user_name} · {formatDateTime(r.created_at)}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Aktivitas terbaru
+              <Link to="/log" className="text-xs font-medium text-primary hover:underline">
+                Lihat semua
+              </Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recent.length === 0 ? (
+              <EmptyState text="Belum ada aktivitas" />
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {recent.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{r.item_name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {r.location_name} · {r.user_name} · {formatDateTime(r.created_at)}
+                      </span>
                     </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <Badge tone={r.type === 'in' || r.type === 'transfer_in' ? 'good' : 'bad'}>
-                      {logTypeLabel[r.type]}
-                    </Badge>
-                    <span className="tabular-nums">
-                      {formatNumber(r.qty)} {r.unit}
+                    <span className="flex shrink-0 items-center gap-2">
+                      <ToneBadge tone={r.type === 'in' || r.type === 'transfer_in' ? 'good' : 'bad'}>
+                        {logTypeLabel[r.type]}
+                      </ToneBadge>
+                      <span className="tabular-nums">
+                        {formatNumber(r.qty)} {r.unit}
+                      </span>
                     </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
         </Card>
       </div>
     </PageStack>

@@ -1,21 +1,20 @@
 import { useState, type FormEvent } from 'react'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { EmptyState, ErrorState, Field, LoadingState, PageHeader, PageStack } from '@/components/common'
+import { Button } from '@/components/ui/button'
 import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Field,
-  Input,
-  LoadingState,
-  Modal,
-  PageHeader,
-  PageStack,
-  Table,
-  Td,
-  Textarea,
-  Th,
-} from '@/components/ui'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { useToast } from '@/contexts/ToastContext'
 import { api } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
@@ -28,6 +27,7 @@ const empty: Draft = { name: '', category: '', unit: 'pcs', min_stock: '0', note
 export function ItemsPage() {
   const { isAdmin } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const { data, error, loading, reload } = useAsync(() => api<Item[]>('/items'), [])
   const [search, setSearch] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -58,7 +58,12 @@ export function ItemsPage() {
   }
 
   async function remove(item: Item) {
-    if (!window.confirm(`Hapus "${item.name}"?`)) return
+    const ok = await confirm({
+      title: `Hapus "${item.name}"?`,
+      description: 'Barang hilang dari katalog. Riwayat lama tetap tersimpan.',
+      confirmLabel: 'Hapus',
+    })
+    if (!ok) return
     try {
       await api(`/items/${item.id}`, { method: 'DELETE' })
       toast.success('Dihapus')
@@ -74,7 +79,10 @@ export function ItemsPage() {
   return (
     <PageStack>
       <PageHeader title="Katalog Barang" subtitle="Daftar barang yang dikelola di inventory.">
-        <Input className="sm:w-56" placeholder="Cari…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="pl-8 sm:w-56" placeholder="Cari…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
         {isAdmin ? (
           <Button onClick={() => setDraft(empty)}>
             <Plus /> Tambah barang
@@ -86,29 +94,28 @@ export function ItemsPage() {
         <EmptyState />
       ) : (
         <Table>
-          <thead>
-            <tr>
-              <Th>Nama</Th>
-              <Th>Kategori</Th>
-              <Th>Satuan</Th>
-              <Th className="text-right">Stok minimum</Th>
-              {isAdmin ? <Th className="w-24" /> : null}
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nama</TableHead>
+              <TableHead>Kategori</TableHead>
+              <TableHead>Satuan</TableHead>
+              <TableHead className="text-right">Stok minimum</TableHead>
+              {isAdmin ? <TableHead className="w-24" /> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((i) => (
-              <tr key={i.id}>
-                <Td className="font-medium">{i.name}</Td>
-                <Td className="text-muted-foreground">{i.category ?? '—'}</Td>
-                <Td>{i.unit}</Td>
-                <Td className="text-right tabular-nums">{formatNumber(i.min_stock)}</Td>
+              <TableRow key={i.id}>
+                <TableCell className="font-medium">{i.name}</TableCell>
+                <TableCell className="text-muted-foreground">{i.category ?? '—'}</TableCell>
+                <TableCell>{i.unit}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatNumber(i.min_stock)}</TableCell>
                 {isAdmin ? (
-                  <Td>
+                  <TableCell>
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="size-8"
+                        size="icon-sm"
                         aria-label={`Ubah ${i.name}`}
                         onClick={() =>
                           setDraft({
@@ -125,59 +132,59 @@ export function ItemsPage() {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive"
+                        size="icon-sm"
+                        className="text-destructive hover:text-destructive"
                         aria-label={`Hapus ${i.name}`}
                         onClick={() => remove(i)}
                       >
                         <Trash2 />
                       </Button>
                     </div>
-                  </Td>
+                  </TableCell>
                 ) : null}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </Table>
       )}
 
-      <Modal
-        open={draft !== null}
-        title={draft?.id ? 'Ubah barang' : 'Tambah barang'}
-        onClose={() => setDraft(null)}
-        footer={
-          <>
+      <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{draft?.id ? 'Ubah barang' : 'Tambah barang'}</DialogTitle>
+            <DialogDescription>Data barang yang tampil di katalog dan stok.</DialogDescription>
+          </DialogHeader>
+          {draft ? (
+            <form id="item-form" onSubmit={save} className="flex flex-col gap-4">
+              <Field label="Nama">
+                <Input value={draft.name} onChange={set('name')} maxLength={150} required autoFocus />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Kategori">
+                  <Input value={draft.category} onChange={set('category')} maxLength={60} />
+                </Field>
+                <Field label="Satuan">
+                  <Input value={draft.unit} onChange={set('unit')} maxLength={20} required />
+                </Field>
+              </div>
+              <Field label="Stok minimum" hint="Peringatan stok menipis muncul bila stok ≤ angka ini. 0 = tanpa peringatan.">
+                <Input type="number" min={0} step={1} value={draft.min_stock} onChange={set('min_stock')} required />
+              </Field>
+              <Field label="Catatan">
+                <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
+              </Field>
+            </form>
+          ) : null}
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDraft(null)}>
               Batal
             </Button>
             <Button type="submit" form="item-form" disabled={busy}>
-              {busy ? 'Menyimpan…' : 'Simpan'}
+              {busy ? <Loader2 className="animate-spin" /> : null} {busy ? 'Menyimpan…' : 'Simpan'}
             </Button>
-          </>
-        }
-      >
-        {draft ? (
-          <form id="item-form" onSubmit={save} className="flex flex-col gap-4">
-            <Field label="Nama">
-              <Input value={draft.name} onChange={set('name')} maxLength={150} required autoFocus />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Kategori">
-                <Input value={draft.category} onChange={set('category')} maxLength={60} />
-              </Field>
-              <Field label="Satuan">
-                <Input value={draft.unit} onChange={set('unit')} maxLength={20} required />
-              </Field>
-            </div>
-            <Field label="Stok minimum" hint="Peringatan stok menipis muncul bila stok ≤ angka ini. 0 = tanpa peringatan.">
-              <Input type="number" min={0} step={1} value={draft.min_stock} onChange={set('min_stock')} required />
-            </Field>
-            <Field label="Catatan">
-              <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
-            </Field>
-          </form>
-        ) : null}
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageStack>
   )
 }
