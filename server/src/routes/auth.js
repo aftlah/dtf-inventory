@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
 import { publicUser, requireAuth, signToken } from '../auth.js'
 import { HttpError, duplicateAs, str, wrap } from '../util.js'
-import { notifyUsers } from '../notify.js'
+import { notifyUsers, sendDiscord } from '../notify.js'
 import { audit } from '../audit.js'
 import { createLimiter } from '../security.js'
 
@@ -38,6 +38,20 @@ authRouter.post(
     const [user] = await query('SELECT * FROM users WHERE username = ?', [username])
     const ok = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH)
     if (!user || !ok || !user.active) {
+      // Pemohon akun yang password-nya BENAR diberi tahu statusnya, bukan "password salah". Pesan status sengaja
+      // hanya muncul bila password cocok, supaya orang lain tidak bisa menebak username mana yang sedang menunggu.
+      // bcrypt.compare selalu dijalankan (pakai hash palsu bila tidak ada permintaan) agar waktu respons sama.
+      const [request] = user
+        ? []
+        : await query(
+            'SELECT status, password_hash FROM account_requests WHERE username = ? ORDER BY id DESC LIMIT 1',
+            [username],
+          )
+      const matches = await bcrypt.compare(password, request?.password_hash ?? DUMMY_HASH)
+      if (request && matches && request.status === 'pending')
+        throw new HttpError(403, 'Akunmu belum disetujui admin. Mohon tunggu sampai permintaanmu disetujui.')
+      if (request && matches && request.status === 'rejected')
+        throw new HttpError(403, 'Permintaan akunmu ditolak admin. Hubungi admin untuk informasi lebih lanjut.')
       byPair.fail(pair)
       byIp.fail(ip)
       throw new HttpError(401, 'Username atau password salah')
@@ -115,6 +129,16 @@ authRouter.post(
       title: 'Permintaan akun baru',
       body: `${name} (@${username}) ingin membuat akun`,
       link: '/users',
+    })
+    sendDiscord(null, {
+      kind: 'account_request',
+      title: 'Permintaan akun baru',
+      description: 'Menunggu persetujuan admin di menu Pengguna → Permintaan akun.',
+      link: '/users',
+      fields: [
+        { name: 'Nama', value: name, inline: true },
+        { name: 'Username', value: `@${username}`, inline: true },
+      ],
     })
     await audit(null, { entity: 'user', id, label: username, action: 'account_request', after: { name, username } })
     res.status(201).json({ ok: true })

@@ -130,3 +130,13 @@ Halaman login punya tautan **Ajukan akun**. Pemohon mengisi nama, username, dan 
 - Pengaman anti-spam: maksimal 5 kiriman per jam per IP (isi `TRUST_PROXY=1` di hosting agar IP asli terbaca), maksimal 100 permintaan yang menunggu, satu permintaan menunggu per username, username tidak boleh sudah dipakai, dan kolom jebakan untuk bot.
 - Tercatat di Log Aktivitas (Ajukan akun, Akun disetujui, Akun ditolak).
 - Jalankan `host:db-init` (atau `db:init` lokal) sekali untuk membuat tabel `account_requests`.
+
+Saat pemohon mencoba login sebelum akunnya diproses dan **password-nya benar**, halaman login menampilkan pesan status ("Akunmu belum disetujui admin..." berwarna kuning, atau "Permintaan akunmu ditolak admin..." berwarna merah) alih-alih "Username atau password salah". Bila password salah atau username tidak dikenal, pesannya tetap generik, supaya orang lain tidak bisa menebak username yang sedang menunggu persetujuan.
+
+### Notifikasi Discord
+
+Bila `DISCORD_WEBHOOK_URL` diisi, pesan dikirim ke channel untuk: pesanan Market baru, pengajuan Penjualan/Pemrosesan/Jual Barang baru, laporan hasil yang menunggu konfirmasi, stok menipis, dan **permintaan akun baru**. Semua pesan memakai `allowed_mentions` kosong, jadi teks dari pengguna (mis. nama pemohon `@everyone`) tidak bisa memicu notifikasi massal. Pesan tidak memuat password atau IP.
+
+#### Tampilan pesan Discord
+
+Pesan dikirim sebagai **embed**: judul berikon dan berwarna menurut jenisnya (🛒 pesanan oranye, 📦 pengajuan biru, 📝 laporan kuning, ⚠️ stok menipis merah, 👤 permintaan akun ungu), kolom rapi (pembeli/pemohon, total, daftar barang, bukti, dan seterusnya), serta waktu dan footer. Isi `APP_URL` (mis. `https://dtf-inventory.aftlah.my.id`) agar judul pesan bisa diklik dan membuka halaman terkait di aplikasi.

@@ -4,7 +4,7 @@ import { isStaff, requireStaff } from '../auth.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
 import { RESERVED, TOTAL_STOCK } from '../stock.js'
 import { audit } from '../audit.js'
-import { notifyLowStock, notifyStaff, notifyUsers } from '../notify.js'
+import { formatUsd, notifyLowStock, notifyStaff, notifyUsers, summarizeItems } from '../notify.js'
 
 export const requestsRouter = Router()
 
@@ -157,6 +157,12 @@ requestsRouter.post(
           title: `Pengajuan ${LABEL[kind]} baru #${r.insertId}`,
           body: `${req.user.name} · ${lines.length} jenis barang`,
           link: LINK[kind],
+          fields: [
+            { name: 'Pemohon', value: req.user.name, inline: true },
+            { name: 'Jenis', value: LABEL[kind], inline: true },
+            ...(kind === 'buyback' ? [{ name: 'Dibayar toko', value: formatUsd(total), inline: true }] : []),
+            { name: 'Barang', value: summarizeItems(lines.map((l) => ({ name: byId.get(l.item_id).name, qty: l.qty }))) },
+          ],
         },
         { discord: true },
       )
@@ -361,6 +367,7 @@ requestsRouter.post(
         throw new HttpError(409, 'Pengajuan belum disetujui atau sudah dilaporkan')
 
       let money = null
+      let resultText = null // ringkasan item hasil (Pemrosesan) untuk pesan Discord
       if (request.kind === 'sale') {
         money = posInt(req.body?.money, 'Jumlah uang')
       } else {
@@ -371,6 +378,7 @@ requestsRouter.post(
         )
         const byId = new Map(items.map((i) => [i.id, i]))
         if (byId.size !== results.length) throw new HttpError(409, 'Ada item hasil yang tidak ditemukan')
+        resultText = summarizeItems(results.map((r) => ({ name: byId.get(r.item_id).name, qty: r.qty })))
         await conn.query(
           'INSERT INTO request_items (request_id, role, item_id, item_name, image_url, qty) VALUES ?',
           [
@@ -391,6 +399,13 @@ requestsRouter.post(
           title: `Laporan ${LABEL[request.kind]} #${request.id} masuk`,
           body: `${req.user.name} menunggu konfirmasi`,
           link: LINK[request.kind],
+          fields: [
+            { name: 'Pemohon', value: req.user.name, inline: true },
+            { name: 'Jenis', value: LABEL[request.kind], inline: true },
+            ...(money !== null ? [{ name: 'Uang hasil', value: formatUsd(money), inline: true }] : []),
+            ...(resultText ? [{ name: 'Item hasil', value: resultText }] : []),
+            { name: 'Bukti', value: proof },
+          ],
         },
         { discord: true },
       )

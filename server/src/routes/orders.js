@@ -4,7 +4,7 @@ import { isStaff, requireStaff } from '../auth.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
 import { MARKET_STOCK, RESERVED } from '../stock.js'
 import { audit } from '../audit.js'
-import { notifyLowStock, notifyStaff, notifyUsers } from '../notify.js'
+import { formatUsd, notifyLowStock, notifyStaff, notifyUsers, summarizeItems } from '../notify.js'
 
 export const marketRouter = Router()
 export const ordersRouter = Router()
@@ -100,6 +100,12 @@ ordersRouter.post(
           title: `Pesanan baru #${order.insertId}`,
           body: `${req.user.name} · $${total.toLocaleString('en-US')} · ${lines.length} jenis barang`,
           link: '/orders',
+          fields: [
+            { name: 'Pembeli', value: req.user.name, inline: true },
+            { name: 'Total', value: formatUsd(total), inline: true },
+            { name: 'Barang', value: summarizeItems(lines.map((l) => ({ name: byId.get(l.item_id).name, qty: l.qty }))) },
+            ...(note ? [{ name: 'Catatan', value: note }] : []),
+          ],
         },
         { discord: true },
       )

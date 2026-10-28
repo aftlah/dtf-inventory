@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowLeft, CheckCircle2, Loader2, LogIn, UserPlus } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock, Loader2, LogIn, UserPlus } from 'lucide-react'
 import { brand } from '@/brand'
 import { Field } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { api } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 
 type Mode = 'login' | 'request' | 'sent'
 
@@ -20,10 +20,13 @@ export function LoginPage() {
   const [website, setWebsite] = useState('') // kolom jebakan untuk bot; manusia tidak melihatnya
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // 403 saat login = akun ada tapi belum bisa dipakai (menunggu persetujuan atau ditolak): tampil sebagai pemberitahuan.
+  const [notice, setNotice] = useState(false)
 
   function switchMode(next: Mode) {
     setMode(next)
     setError(null)
+    setNotice(false)
     setPassword('')
     setConfirm('')
   }
@@ -32,10 +35,12 @@ export function LoginPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
+    setNotice(false)
     try {
       await signIn(username, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal masuk')
+      setNotice(err instanceof ApiError && err.status === 403)
     } finally {
       setBusy(false)
     }
@@ -98,7 +103,15 @@ export function LoginPage() {
                   />
                 </Field>
                 {error ? (
-                  <p role="alert" className="rounded-lg bg-destructive/15 px-3 py-2 text-sm text-destructive">
+                  <p
+                    role="alert"
+                    className={
+                      notice && !error.includes('ditolak')
+                        ? 'flex items-start gap-2 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200'
+                        : 'rounded-lg bg-destructive/15 px-3 py-2 text-sm text-destructive'
+                    }
+                  >
+                    {notice && !error.includes('ditolak') ? <Clock className="mt-0.5 size-4 shrink-0" aria-hidden /> : null}
                     {error}
                   </p>
                 ) : null}
