@@ -103,3 +103,7 @@ Menu **Keuangan → Buku Kas** (admin/staff), seperti `inventory-bbc`:
 - **Laporan Keuangan** (Keuangan → Laporan Keuangan): Penjualan = pesanan Market yang disetujui + uang hasil Penjualan yang dilaporkan; Modal = harga modal × qty terjual; Profit = Penjualan − Modal. Juga nilai stok, jumlah dibayar ke member (Jual Barang), rincian per hari, dan barang paling menguntungkan. Isi **Harga modal** tiap barang di Katalog Barang; harga modal disalin ke tiap transaksi, jadi mengubahnya tidak mengubah laporan lama. Hari mengikuti WIB.
 - **Log Aktivitas** (Admin → Log Aktivitas): setiap perubahan barang, lokasi, pengguna, pesanan, pengajuan, dan buku kas dicatat (siapa, kapan, nilai lama → baru). Password tidak pernah dicatat. Tidak ada fitur ubah/hapus log dari aplikasi.
 - Jalankan `npm run db:init` sekali untuk membuat tabel baru dan kolom harga modal. Waktu di database kini disimpan sebagai UTC (sesi koneksi diatur otomatis).
+
+## Dashboard member
+
+Member (role `member`) masuk ke dashboard pribadi di `/`: pesanan menunggu, total belum dibayar, pengajuan yang perlu dilaporkan, belanja minggu ini, jalan pintas (Market, Ajukan Penjualan, Jual Barang, Ajukan Pemrosesan), daftar **Perlu tindakanmu**, aktivitas terbaru, dan **leaderboard mingguan** (Top Spender = belanja Market yang disetujui; Top Seller = uang Penjualan yang dilaporkan + Jual Barang yang selesai; Senin–Minggu WIB). Data dari `GET /api/me/dashboard`.

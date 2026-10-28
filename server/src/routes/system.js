@@ -220,3 +220,91 @@ financeRouter.get(
     })
   }),
 )
+
+/* ---------- Dashboard pribadi (semua akun; dipakai member) ---------- */
+
+export const meRouter = Router()
+
+// Senin 00:00 sampai Senin berikutnya, menurut WIB, dinyatakan dalam UTC.
+function weekRangeWib() {
+  const wib = new Date(Date.now() + 7 * 3600 * 1000) // jam dinding WIB dibaca lewat getUTC*
+  const sinceMonday = (wib.getUTCDay() + 6) % 7
+  const start = new Date(Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate() - sinceMonday) - 7 * 3600 * 1000)
+  return { start, end: new Date(start.getTime() + 7 * 24 * 3600 * 1000) }
+}
+
+meRouter.get(
+  '/dashboard',
+  wrap(async (req, res) => {
+    const uid = req.user.id
+    const week = weekRangeWib()
+
+    const [counts] = await query(
+      `SELECT
+         (SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'pending') AS orders_pending,
+         (SELECT COUNT(*) FROM orders WHERE user_id = ? AND status IN ('pending','approved') AND paid = 0) AS unpaid_count,
+         (SELECT COALESCE(SUM(total), 0) FROM orders WHERE user_id = ? AND status IN ('pending','approved') AND paid = 0) AS unpaid_total,
+         (SELECT COUNT(*) FROM requests WHERE user_id = ? AND status = 'approved') AS need_report,
+         (SELECT COUNT(*) FROM requests WHERE user_id = ? AND status IN ('pending','reported')) AS requests_waiting,
+         (SELECT COALESCE(SUM(total), 0) FROM orders
+           WHERE user_id = ? AND status = 'approved' AND decided_at >= ? AND decided_at < ?) AS spent_week`,
+      [uid, uid, uid, uid, uid, uid, week.start, week.end],
+    )
+
+    const unpaidOrders = await query(
+      `SELECT id, total, status, created_at FROM orders
+        WHERE user_id = ? AND status IN ('pending','approved') AND paid = 0 ORDER BY id DESC LIMIT 5`,
+      [uid],
+    )
+    const needReport = await query(
+      `SELECT id, kind, created_at FROM requests WHERE user_id = ? AND status = 'approved' ORDER BY id DESC LIMIT 5`,
+      [uid],
+    )
+    const recentOrders = await query(
+      `SELECT id, status, total, paid, created_at FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 6`,
+      [uid],
+    )
+    const recentRequests = await query(
+      `SELECT id, kind, status, total, result_money, created_at FROM requests WHERE user_id = ? ORDER BY id DESC LIMIT 6`,
+      [uid],
+    )
+
+    // Leaderboard minggu ini (Senin–Minggu, WIB), terlihat oleh semua member.
+    const spenders = await query(
+      `SELECT user_id, MAX(user_name) AS name, COUNT(*) AS count, SUM(total) AS amount
+         FROM orders WHERE status = 'approved' AND decided_at >= ? AND decided_at < ?
+        GROUP BY user_id ORDER BY amount DESC LIMIT 10`,
+      [week.start, week.end],
+    )
+    const sellers = await query(
+      `SELECT user_id, MAX(user_name) AS name, COUNT(*) AS count, SUM(amount) AS amount FROM (
+         SELECT user_id, user_name, COALESCE(result_money, 0) AS amount FROM requests
+          WHERE kind = 'sale' AND status IN ('reported','completed') AND reported_at >= ? AND reported_at < ?
+         UNION ALL
+         SELECT user_id, user_name, total AS amount FROM requests
+          WHERE kind = 'buyback' AND status = 'completed' AND completed_at >= ? AND completed_at < ?
+       ) t GROUP BY user_id ORDER BY amount DESC LIMIT 10`,
+      [week.start, week.end, week.start, week.end],
+    )
+    const board = (rows) =>
+      rows.map((r) => ({ user_id: r.user_id, name: r.name, count: Number(r.count), amount: Number(r.amount) }))
+
+    res.json({
+      counts: Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, Number(v)])),
+      unpaid_orders: unpaidOrders.map((o) => ({ ...o, total: Number(o.total) })),
+      need_report: needReport,
+      recent_orders: recentOrders.map((o) => ({ ...o, total: Number(o.total), paid: !!o.paid })),
+      recent_requests: recentRequests.map((r) => ({
+        ...r,
+        total: Number(r.total),
+        result_money: r.result_money === null ? null : Number(r.result_money),
+      })),
+      leaderboard: {
+        week_start: week.start,
+        week_end: new Date(week.end.getTime() - 1),
+        spenders: board(spenders),
+        sellers: board(sellers),
+      },
+    })
+  }),
+)

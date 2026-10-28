@@ -186,3 +186,28 @@ export type FinanceReport = {
   by_day: { day: string; revenue: number; cogs: number; profit: number }[]
   top_items: { name: string; qty: number; revenue: number; profit: number }[]
 }
+
+export type LeaderRow = { user_id: number; name: string; count: number; amount: number }
+
+export type MemberDashboard = {
+  counts: {
+    orders_pending: number
+    unpaid_count: number
+    unpaid_total: number
+    need_report: number
+    requests_waiting: number
+    spent_week: number
+  }
+  unpaid_orders: { id: number; total: number; status: OrderStatus; created_at: string }[]
+  need_report: { id: number; kind: RequestKind; created_at: string }[]
+  recent_orders: { id: number; status: OrderStatus; total: number; paid: boolean; created_at: string }[]
+  recent_requests: {
+    id: number
+    kind: RequestKind
+    status: RequestStatus
+    total: number
+    result_money: number | null
+    created_at: string
+  }[]
+  leaderboard: { week_start: string; week_end: string; spenders: LeaderRow[]; sellers: LeaderRow[] }
+}

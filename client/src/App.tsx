@@ -9,6 +9,7 @@ import { FinancePage } from '@/pages/FinancePage'
 import { ItemsPage } from '@/pages/ItemsPage'
 import { LocationsPage } from '@/pages/LocationsPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { MemberDashboardPage } from '@/pages/MemberDashboardPage'
 import { LogPage } from '@/pages/LogPage'
 import { MovementsPage } from '@/pages/MovementsPage'
 import { OrdersPage } from '@/pages/OrdersPage'
@@ -23,11 +24,11 @@ export function App() {
   if (loading) return <LoadingState />
   if (!user) return <LoginPage />
 
-  // Member hanya punya Market, pesanan sendiri, dan profil.
+  // Member punya dashboard sendiri, Market, penjualan/pemrosesan, pesanan sendiri, dan profil.
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={isStaff ? <DashboardPage /> : <Navigate to="/market" replace />} />
+        <Route index element={isStaff ? <DashboardPage /> : <MemberDashboardPage />} />
         <Route path="market" element={<ShopPage kind="market" />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="sales/new" element={<ShopPage kind="sale" />} />

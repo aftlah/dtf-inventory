@@ -47,7 +47,6 @@ type NavGroup = { title: string; items: NavItem[]; access?: Access }
 const groups: NavGroup[] = [
   {
     title: 'Utama',
-    access: 'staff',
     items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {

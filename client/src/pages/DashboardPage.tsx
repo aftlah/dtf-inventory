@@ -28,7 +28,7 @@ export function DashboardPage() {
     <PageStack>
       <PageHeader title={`Halo, ${user?.name}`} subtitle="Ringkasan inventory hari ini." />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Link to="/orders" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           <Kpi label="Pesanan menunggu" value={formatNumber(counts.pending_orders)} hint="perlu diproses" icon={Receipt} />
         </Link>
