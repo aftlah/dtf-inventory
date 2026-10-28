@@ -9,6 +9,7 @@
     "db:init": "node --env-file=.env scripts/init-db.js",
     "db:seed-market": "node --env-file=.env scripts/seed-market.js",
     "host:db-init": "node scripts/init-db.js",
+    "hash-password": "node scripts/hash-password.js",
     "host:seed-market": "node scripts/seed-market.js"
   },
   "dependencies": {

@@ -306,7 +306,14 @@ export function CashPage() {
                 <TableCell>
                   <ToneBadge tone={e.type === 'income' ? 'good' : 'bad'}>{categoryLabel(e.category)}</ToneBadge>
                 </TableCell>
-                <TableCell>{e.counterparty ?? '—'}</TableCell>
+                <TableCell>
+                  {e.counterparty ?? '—'}
+                  {e.ref_type ? (
+                    <span className="ml-1.5 rounded bg-secondary px-1.5 py-0.5 align-middle text-[10px] font-semibold text-muted-foreground uppercase">
+                      Otomatis
+                    </span>
+                  ) : null}
+                </TableCell>
                 <TableCell
                   className={cn('text-right font-medium tabular-nums', e.type === 'income' ? 'text-emerald-300' : 'text-rose-300')}
                 >

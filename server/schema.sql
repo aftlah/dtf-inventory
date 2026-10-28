@@ -181,6 +181,8 @@ CREATE TABLE IF NOT EXISTS cash_entries (
   counterparty    VARCHAR(120) NULL,              -- sumber pemasukan / tujuan pengeluaran
   note            VARCHAR(500) NULL,
   wash_status     ENUM('dirty','washing','clean') NULL,  -- hanya untuk pemasukan
+  ref_type        VARCHAR(20) NULL,               -- dokumen asal bila dicatat otomatis (mis. 'order')
+  ref_id          BIGINT UNSIGNED NULL,
   washed_at       TIMESTAMP NULL,
   created_by      BIGINT UNSIGNED NULL,
   created_by_name VARCHAR(100) NOT NULL,          -- snapshot
@@ -190,7 +192,8 @@ CREATE TABLE IF NOT EXISTS cash_entries (
   CONSTRAINT cash_wash_chk CHECK ((type = 'income' AND wash_status IS NOT NULL) OR (type = 'expense' AND wash_status IS NULL)),
   CONSTRAINT cash_user_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
   KEY cash_date_idx (entry_date, id),
-  KEY cash_type_idx (type, entry_date)
+  KEY cash_type_idx (type, entry_date),
+  KEY cash_ref_idx (ref_type, ref_id)
 ) ENGINE=InnoDB;
 
 -- Log aktivitas: siapa mengubah apa dan kapan (nilai lama -> baru). Hanya ditulis oleh server.

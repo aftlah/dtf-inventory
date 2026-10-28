@@ -72,9 +72,18 @@ npm run db:seed-market -- --stock     # sekaligus stok awal seperti BBC
 1. `npm run build`, lalu zip `server/` (tanpa `node_modules` dan `.env`) + `client/dist/` dengan struktur `dtf/server` dan `dtf/client/dist` (paket jadi: `deploy/dtf-inventory.zip`).
 2. cPanel → **MySQL Databases**: buat database + user, beri **ALL PRIVILEGES**. Nama aslinya berawalan akun cPanel (mis. `akun_dtf`).
 3. File Manager → upload dan extract zip ke home (`~/dtf/server`, `~/dtf/client/dist`).
-4. **Setup Node.js App → Create Application**: Node.js 20/22, Application root `dtf/server`, Startup file `app.cjs`, pilih domain/subdomain. Isi environment variables: `DB_HOST=localhost`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SKIP_CREATE=1`, `JWT_SECRET` (acak), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
-5. **Run NPM Install**, lalu jalankan skrip `host:db-init` (buat tabel + admin), dan opsional `host:seed-market`. Terakhir **Restart**.
-6. Setelah update kode: build ulang, upload ulang `client/dist` / `server/src`, lalu Restart.
+4. **Setup Node.js App → Create Application**: Node.js 20/22, mode Production, Application root `dtf/server`, Startup file `app.cjs`, pilih domain/subdomain (di root, bukan path). Isi environment variables: `DB_HOST=localhost`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SKIP_CREATE=1`, `JWT_SECRET` (acak, ≥16 karakter), **`TRUST_PROXY=1`**, dan opsional `DISCORD_WEBHOOK_URL`. (`ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_NAME` bersifat opsional, lihat langkah 6.)
+5. **Run NPM Install**, lalu jalankan skrip `host:db-init` (buat/upgrade tabel + admin pertama; aman diulang), dan opsional `host:seed-market`. Terakhir **Restart**.
+6. **Admin pertama** (pilih salah satu): (a) buat manual di database: di komputermu, folder `server`, jalankan `npm run hash-password -- "PasswordBaru"`, lalu tempel SQL yang tercetak ke phpMyAdmin (tab SQL, database aplikasi); atau (b) isi `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME` sebelum `host:db-init` agar dibuat otomatis (hanya bila tabel `users` masih kosong). Cara (a) membuat password admin tidak tersimpan di environment variable.
+7. Setelah update kode: build ulang, upload ulang `client/dist` / `server/src`, jalankan `host:db-init` bila ada tabel/kolom baru, lalu Restart.
+
+**Jangan pernah menaruh password atau kredensial di file yang ikut ke git** (termasuk `.env.example` dan komentarnya). Simpan hanya di environment variable cPanel atau `server/.env` (sudah di-.gitignore).
+
+### Pengamanan bawaan
+
+- Login dibatasi: 8 percobaan gagal per 15 menit untuk kombinasi IP + username (30 per IP), dan 8 untuk ganti password per akun. Disimpan di memori (hilang saat server restart). Respons 429 menampilkan lama tunggu.
+- Header keamanan (CSP, X-Frame-Options, nosniff, Referrer-Policy, HSTS saat HTTPS) dan `Cache-Control: no-store` untuk semua respons API.
+- Isi `TRUST_PROXY=1` di hosting agar IP asli pengguna terbaca; tanpa itu semua pengguna tampak berasal dari IP proxy yang sama dan pembatas login bisa memblokir semua orang sekaligus.
 
 ## Penjualan, Pemrosesan, dan Jual Barang
 
@@ -107,3 +116,7 @@ Menu **Keuangan → Buku Kas** (admin/staff), seperti `inventory-bbc`:
 ## Dashboard member
 
 Member (role `member`) masuk ke dashboard pribadi di `/`: pesanan menunggu, total belum dibayar, pengajuan yang perlu dilaporkan, belanja minggu ini, jalan pintas (Market, Ajukan Penjualan, Jual Barang, Ajukan Pemrosesan), daftar **Perlu tindakanmu**, aktivitas terbaru, dan **leaderboard mingguan** (Top Spender = belanja Market yang disetujui; Top Seller = uang Penjualan yang dilaporkan + Jual Barang yang selesai; Senin–Minggu WIB). Data dari `GET /api/me/dashboard`.
+
+### Pemasukan otomatis dari pesanan
+
+Saat staff menandai pesanan Market **sudah dibayar**, server otomatis mencatat pemasukan di Buku Kas (kategori *Penjualan Market*, status uang *kotor*, bertanda **Otomatis**, tidak ganda walau ditandai berkali-kali). Menandai **belum dibayar** menghapus catatan itu. Pesanan yang sudah lunas lalu dibatalkan **tidak** otomatis membuat pengeluaran pengembalian dana: catat manual di Buku Kas. Pesanan yang ditandai lunas sebelum fitur ini ada tidak punya catatan kas otomatis.

@@ -56,6 +56,8 @@ await addColumn('request_items', 'cost', 'BIGINT UNSIGNED NOT NULL DEFAULT 0')
 await addColumn('requests', 'total', 'BIGINT UNSIGNED NOT NULL DEFAULT 0')
 await addColumn('request_items', 'price', 'BIGINT UNSIGNED NOT NULL DEFAULT 0')
 await conn.query(`ALTER TABLE requests MODIFY kind ENUM('sale','process','buyback') NOT NULL`)
+await addColumn('cash_entries', 'ref_type', 'VARCHAR(20) NULL')
+await addColumn('cash_entries', 'ref_id', 'BIGINT UNSIGNED NULL')
 await addColumn('inventory_logs', 'ref_type', 'VARCHAR(20) NULL')
 await addColumn('inventory_logs', 'ref_id', 'BIGINT UNSIGNED NULL')
 await addColumn('orders', 'paid', 'TINYINT(1) NOT NULL DEFAULT 0')
@@ -69,15 +71,23 @@ console.log(`Skema siap di database "${dbName}"`)
 
 const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM users')
 if (n === 0) {
-  const username = (process.env.ADMIN_USERNAME ?? 'admin').toLowerCase()
   const password = process.env.ADMIN_PASSWORD ?? ''
-  if (password.length < 8) throw new Error('Isi ADMIN_PASSWORD (minimal 8 karakter) di server/.env')
-  await conn.query('INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, ?)', [
-    process.env.ADMIN_NAME ?? 'Administrator',
-    username,
-    await bcrypt.hash(password, 10),
-    'admin',
-  ])
-  console.log(`Admin dibuat: ${username}`)
+  if (!password) {
+    // Admin boleh dimasukkan manual ke tabel users (mis. lewat phpMyAdmin): lihat `npm run hash-password`.
+    console.log(
+      'Belum ada pengguna dan ADMIN_PASSWORD kosong, jadi admin tidak dibuat otomatis.\n' +
+        'Buat hash password lalu masukkan ke tabel users: npm run hash-password -- "PasswordBaru"',
+    )
+  } else {
+    if (password.length < 8) throw new Error('ADMIN_PASSWORD minimal 8 karakter')
+    const username = (process.env.ADMIN_USERNAME ?? 'admin').toLowerCase()
+    await conn.query('INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, ?)', [
+      process.env.ADMIN_NAME ?? 'Administrator',
+      username,
+      await bcrypt.hash(password, 10),
+      'admin',
+    ])
+    console.log(`Admin dibuat: ${username}`)
+  }
 }
 await conn.end()

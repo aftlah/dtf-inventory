@@ -48,7 +48,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => void }
     if (!paid) {
       const ok = await confirm({
         title: `Batalkan status lunas pesanan #${order.id}?`,
-        description: 'Pesanan kembali ditandai belum dibayar.',
+        description: 'Pesanan kembali ditandai belum dibayar. Pemasukan terkait di Buku Kas ikut dihapus.',
         confirmLabel: 'Ya, belum dibayar',
       })
       if (!ok) return
@@ -56,7 +56,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => void }
     setBusy('paid')
     try {
       await api(`/orders/${order.id}/payment`, { method: 'POST', body: { paid } })
-      toast.success(paid ? 'Ditandai sudah dibayar' : 'Ditandai belum dibayar')
+      toast.success(paid ? 'Ditandai sudah dibayar · tercatat di Buku Kas' : 'Ditandai belum dibayar')
       onChanged()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal memperbarui pembayaran')
@@ -71,9 +71,10 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => void }
       const ok = await confirm({
         title: action === 'reject' ? `Tolak pesanan #${order.id}?` : `Batalkan pesanan #${order.id}?`,
         description:
-          action === 'cancel' && order.status === 'approved'
+          (action === 'cancel' && order.status === 'approved'
             ? 'Stok barang dikembalikan ke lokasi asalnya.'
-            : 'Stok yang dipesan dilepas kembali.',
+            : 'Stok yang dipesan dilepas kembali.') +
+          (order.paid ? ' Pesanan ini sudah dibayar: catat pengembalian dana di Buku Kas bila perlu.' : ''),
         confirmLabel: action === 'reject' ? 'Tolak' : 'Batalkan',
       })
       if (!ok) return

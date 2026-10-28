@@ -88,7 +88,7 @@ cashRouter.get(
     const limit = Math.min(Number(req.query.limit) || 300, 500)
     const rows = await query(
       `SELECT id, DATE_FORMAT(entry_date, '%Y-%m-%d') AS entry_date, type, category, amount,
-              counterparty, note, wash_status, created_by_name
+              counterparty, note, wash_status, ref_type, ref_id, created_by_name
          FROM cash_entries WHERE ${where.join(' AND ')}
         ORDER BY entry_date DESC, id DESC LIMIT ?`,
       [...params, limit],

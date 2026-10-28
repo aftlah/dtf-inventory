@@ -10,12 +10,21 @@ import { inventoryRouter } from './routes/inventory.js'
 import { marketRouter, ordersRouter } from './routes/orders.js'
 import { requestsRouter } from './routes/requests.js'
 import { auditRouter, financeRouter, meRouter, notificationsRouter } from './routes/system.js'
+import { noStore, securityHeaders } from './security.js'
 import { usersRouter } from './routes/users.js'
 
 const app = express()
 app.disable('x-powered-by')
+// Di belakang proxy hosting (cPanel/Passenger, Cloudflare), isi TRUST_PROXY=1 agar IP asli pengguna terbaca
+// (dipakai pembatas login) dan HTTPS terdeteksi. Jangan diisi bila server diakses langsung tanpa proxy.
+if (process.env.TRUST_PROXY) {
+  const v = process.env.TRUST_PROXY
+  app.set('trust proxy', Number.isNaN(Number(v)) ? v : Number(v))
+}
+app.use(securityHeaders)
 app.use(express.json({ limit: '100kb' }))
 
+app.use('/api', noStore)
 app.use('/api/auth', authRouter)
 app.use('/api/users', requireAuth, requireAdmin, usersRouter)
 // Semua akun (termasuk member): Market dan pesanan. Pembatasan per-aksi ada di dalam router.

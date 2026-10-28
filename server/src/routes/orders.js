@@ -297,6 +297,51 @@ ordersRouter.post(
         'UPDATE orders SET paid = ?, paid_at = ?, paid_by_name = ? WHERE id = ?',
         paid ? [1, new Date(), req.user.name, order.id] : [0, null, null, order.id],
       )
+
+      if (paid) {
+        const [[existing]] = await conn.query(
+          "SELECT id FROM cash_entries WHERE ref_type = 'order' AND ref_id = ? AND deleted_at IS NULL LIMIT 1",
+          [order.id],
+        )
+        if (!existing) {
+          const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10) // tanggal WIB
+          const [ins] = await conn.query(
+            `INSERT INTO cash_entries (entry_date, type, category, amount, counterparty, note, wash_status,
+                                       ref_type, ref_id, created_by, created_by_name)
+             VALUES (?, 'income', 'market_sales', ?, ?, ?, 'dirty', 'order', ?, ?, ?)`,
+            [today, order.total, order.user_name, `Pesanan #${order.id} (otomatis)`, order.id, req.user.id, req.user.name],
+          )
+          await audit(
+            req.user,
+            {
+              entity: 'cash',
+              id: ins.insertId,
+              label: `Pemasukan Penjualan Market`,
+              action: 'create',
+              after: { kategori: 'market_sales', nominal: Number(order.total), sumber_tujuan: order.user_name },
+              details: { dari: `Pesanan #${order.id} ditandai lunas` },
+            },
+            conn,
+          )
+        }
+      } else {
+        const [removed] = await conn.query(
+          "UPDATE cash_entries SET deleted_at = NOW() WHERE ref_type = 'order' AND ref_id = ? AND deleted_at IS NULL",
+          [order.id],
+        )
+        if (removed.affectedRows) {
+          await audit(
+            req.user,
+            {
+              entity: 'cash',
+              label: 'Pemasukan Penjualan Market',
+              action: 'delete',
+              details: { alasan: `Pembayaran pesanan #${order.id} dibatalkan` },
+            },
+            conn,
+          )
+        }
+      }
     })
     res.json({ ok: true })
   }),

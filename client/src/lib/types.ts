@@ -140,6 +140,8 @@ export type CashEntry = {
   counterparty: string | null
   note: string | null
   wash_status: WashStatus | null
+  ref_type: string | null
+  ref_id: number | null
   created_by_name: string
 }
 
