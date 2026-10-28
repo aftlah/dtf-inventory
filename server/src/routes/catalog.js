@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { query } from '../db.js'
+import { audit } from '../audit.js'
 import { requireAdmin } from '../auth.js'
 import { HttpError, duplicateAs, posInt, str, wrap } from '../util.js'
 
@@ -22,36 +23,36 @@ function itemBody(b) {
     min_stock: posInt(b?.min_stock ?? 0, 'Stok minimum', { min: 0 }),
     notes: str(b?.notes, { field: 'Catatan', max: 500 }),
     price: posInt(b?.price ?? 0, 'Harga', { min: 0 }),
+    cost_price: posInt(b?.cost_price ?? 0, 'Harga modal', { min: 0 }),
     image_url: imageUrl(b?.image_url),
     in_market: b?.in_market ? 1 : 0,
     in_sale: b?.in_sale ? 1 : 0,
     in_process: b?.in_process ? 1 : 0,
+    min_sale_qty: posInt(b?.min_sale_qty ?? 1, 'Minimal penjualan', { min: 1 }),
     in_buyback: b?.in_buyback ? 1 : 0,
     buyback_price: posInt(b?.buyback_price ?? 0, 'Harga beli', { min: 0 }),
-    min_sale_qty: posInt(b?.min_sale_qty ?? 1, 'Minimal penjualan', { min: 1 }),
   }
 }
 
-const ITEM_COLUMNS =
-  'id, name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty, in_buyback, buyback_price'
+const ITEM_FIELDS = Object.keys(itemBody({ name: 'x' }))
+const ITEM_COLUMNS = ['id', ...ITEM_FIELDS].join(', ')
+
+const toItem = (r) => ({
+  ...r,
+  price: Number(r.price),
+  cost_price: Number(r.cost_price),
+  buyback_price: Number(r.buyback_price),
+  in_market: !!r.in_market,
+  in_sale: !!r.in_sale,
+  in_process: !!r.in_process,
+  in_buyback: !!r.in_buyback,
+})
 
 catalogRouter.get(
   '/items',
   wrap(async (_req, res) => {
-    const rows = await query(
-      `SELECT ${ITEM_COLUMNS} FROM items WHERE deleted_at IS NULL ORDER BY name`,
-    )
-    res.json(
-      rows.map((r) => ({
-        ...r,
-        price: Number(r.price),
-        in_market: !!r.in_market,
-        in_sale: !!r.in_sale,
-        in_process: !!r.in_process,
-        in_buyback: !!r.in_buyback,
-        buyback_price: Number(r.buyback_price),
-      })),
-    )
+    const rows = await query(`SELECT ${ITEM_COLUMNS} FROM items WHERE deleted_at IS NULL ORDER BY name`)
+    res.json(rows.map(toItem))
   }),
 )
 
@@ -60,16 +61,18 @@ catalogRouter.post(
   requireAdmin,
   wrap(async (req, res) => {
     const d = itemBody(req.body)
+    let id
     try {
       const r = await query(
-        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty, in_buyback, buyback_price)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, d.in_buyback, d.buyback_price],
+        `INSERT INTO items (${ITEM_FIELDS.join(', ')}) VALUES (${ITEM_FIELDS.map(() => '?').join(', ')})`,
+        ITEM_FIELDS.map((f) => d[f]),
       )
-      res.status(201).json({ id: r.insertId })
+      id = r.insertId
     } catch (e) {
       throw duplicateAs(e, 'Nama barang sudah ada')
     }
+    await audit(req.user, { entity: 'item', id, label: d.name, action: 'create', after: d })
+    res.status(201).json({ id })
   }),
 )
 
@@ -78,18 +81,27 @@ catalogRouter.put(
   requireAdmin,
   wrap(async (req, res) => {
     const d = itemBody(req.body)
-    let r
+    const [before] = await query(
+      `SELECT ${ITEM_FIELDS.join(', ')} FROM items WHERE id = ? AND deleted_at IS NULL`,
+      [req.params.id],
+    )
+    if (!before) throw new HttpError(404, 'Barang tidak ditemukan')
     try {
-      r = await query(
-        `UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=?, price=?, image_url=?, in_market=?,
-                in_sale=?, in_process=?, min_sale_qty=?, in_buyback=?, buyback_price=?
-          WHERE id=? AND deleted_at IS NULL`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, d.in_buyback, d.buyback_price, req.params.id],
+      await query(
+        `UPDATE items SET ${ITEM_FIELDS.map((f) => `${f} = ?`).join(', ')} WHERE id = ? AND deleted_at IS NULL`,
+        [...ITEM_FIELDS.map((f) => d[f]), req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama barang sudah ada')
     }
-    if (!r.affectedRows) throw new HttpError(404, 'Barang tidak ditemukan')
+    await audit(req.user, {
+      entity: 'item',
+      id: Number(req.params.id),
+      label: d.name,
+      action: 'update',
+      before,
+      after: d,
+    })
     res.json({ ok: true })
   }),
 )
@@ -98,6 +110,8 @@ catalogRouter.delete(
   '/items/:id',
   requireAdmin,
   wrap(async (req, res) => {
+    const [item] = await query('SELECT name FROM items WHERE id = ? AND deleted_at IS NULL', [req.params.id])
+    if (!item) throw new HttpError(404, 'Barang tidak ditemukan')
     const [{ total }] = await query(
       'SELECT COALESCE(SUM(qty), 0) AS total FROM stock_levels WHERE item_id = ?',
       [req.params.id],
@@ -115,10 +129,8 @@ catalogRouter.delete(
       [req.params.id],
     )
     if (Number(pendingReq) > 0) throw new HttpError(409, 'Barang masih ada di pengajuan yang belum selesai')
-    const r = await query('UPDATE items SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [
-      req.params.id,
-    ])
-    if (!r.affectedRows) throw new HttpError(404, 'Barang tidak ditemukan')
+    await query('UPDATE items SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [req.params.id])
+    await audit(req.user, { entity: 'item', id: Number(req.params.id), label: item.name, action: 'delete' })
     res.json({ ok: true })
   }),
 )
@@ -149,15 +161,20 @@ catalogRouter.post(
   requireAdmin,
   wrap(async (req, res) => {
     const d = locationBody(req.body)
+    let id
     try {
-      const r = await query(
-        'INSERT INTO locations (name, kind, notes, sell_in_market) VALUES (?, ?, ?, ?)',
-        [d.name, d.kind, d.notes, d.sell_in_market],
-      )
-      res.status(201).json({ id: r.insertId })
+      const r = await query('INSERT INTO locations (name, kind, notes, sell_in_market) VALUES (?, ?, ?, ?)', [
+        d.name,
+        d.kind,
+        d.notes,
+        d.sell_in_market,
+      ])
+      id = r.insertId
     } catch (e) {
       throw duplicateAs(e, 'Nama lokasi sudah ada')
     }
+    await audit(req.user, { entity: 'location', id, label: d.name, action: 'create', after: d })
+    res.status(201).json({ id })
   }),
 )
 
@@ -166,16 +183,27 @@ catalogRouter.put(
   requireAdmin,
   wrap(async (req, res) => {
     const d = locationBody(req.body)
-    let r
+    const [before] = await query(
+      'SELECT name, kind, notes, sell_in_market FROM locations WHERE id = ? AND deleted_at IS NULL',
+      [req.params.id],
+    )
+    if (!before) throw new HttpError(404, 'Lokasi tidak ditemukan')
     try {
-      r = await query(
+      await query(
         'UPDATE locations SET name=?, kind=?, notes=?, sell_in_market=? WHERE id=? AND deleted_at IS NULL',
         [d.name, d.kind, d.notes, d.sell_in_market, req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama lokasi sudah ada')
     }
-    if (!r.affectedRows) throw new HttpError(404, 'Lokasi tidak ditemukan')
+    await audit(req.user, {
+      entity: 'location',
+      id: Number(req.params.id),
+      label: d.name,
+      action: 'update',
+      before,
+      after: d,
+    })
     res.json({ ok: true })
   }),
 )
@@ -184,16 +212,15 @@ catalogRouter.delete(
   '/locations/:id',
   requireAdmin,
   wrap(async (req, res) => {
+    const [loc] = await query('SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL', [req.params.id])
+    if (!loc) throw new HttpError(404, 'Lokasi tidak ditemukan')
     const [{ total }] = await query(
       'SELECT COALESCE(SUM(qty), 0) AS total FROM stock_levels WHERE location_id = ?',
       [req.params.id],
     )
     if (Number(total) > 0) throw new HttpError(409, 'Lokasi masih berisi stok, pindahkan dulu')
-    const r = await query(
-      'UPDATE locations SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-      [req.params.id],
-    )
-    if (!r.affectedRows) throw new HttpError(404, 'Lokasi tidak ditemukan')
+    await query('UPDATE locations SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [req.params.id])
+    await audit(req.user, { entity: 'location', id: Number(req.params.id), label: loc.name, action: 'delete' })
     res.json({ ok: true })
   }),
 )

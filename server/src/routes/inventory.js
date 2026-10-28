@@ -2,6 +2,10 @@ import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
 import { query, withTx } from '../db.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
+import { notifyLowStock } from '../notify.js'
+
+// Awal hari ini menurut WIB, dinyatakan dalam UTC (sesi database memakai UTC).
+const TODAY_START = `CONVERT_TZ(DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')), '+07:00', '+00:00')`
 
 export const inventoryRouter = Router()
 
@@ -75,6 +79,7 @@ inventoryRouter.post(
 
       if (type === 'out') {
         await insert(locId, 'out')
+        await notifyLowStock(conn, [itemId])
         return
       }
 
@@ -133,8 +138,8 @@ inventoryRouter.get(
           (SELECT COALESCE(SUM(s.qty), 0) FROM stock_levels s
              JOIN items i ON i.id = s.item_id AND i.deleted_at IS NULL
              JOIN locations l ON l.id = s.location_id AND l.deleted_at IS NULL) AS units,
-          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'in' AND created_at >= CURDATE()) AS in_today,
-          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'out' AND created_at >= CURDATE()) AS out_today,
+          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'in' AND created_at >= ${TODAY_START}) AS in_today,
+          (SELECT COUNT(*) FROM inventory_logs WHERE type = 'out' AND created_at >= ${TODAY_START}) AS out_today,
           (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders,
           (SELECT COUNT(*) FROM requests WHERE status IN ('pending', 'reported')) AS open_requests`,
     )

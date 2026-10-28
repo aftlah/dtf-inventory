@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FlaskConical,
   HandCoins,
+  History,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -21,6 +22,7 @@ import {
   Store,
   User,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -35,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { NotificationBell } from '@/components/NotificationBell'
 import { useAuth } from '@/contexts/AuthContext'
 
 type Access = 'staff' | 'admin'
@@ -84,9 +87,19 @@ const groups: NavGroup[] = [
   {
     title: 'Keuangan',
     access: 'staff',
-    items: [{ to: '/cash', label: 'Buku Kas', icon: BookOpen }],
+    items: [
+      { to: '/finance', label: 'Laporan Keuangan', icon: Wallet },
+      { to: '/cash', label: 'Buku Kas', icon: BookOpen },
+    ],
   },
-  { title: 'Admin', access: 'admin', items: [{ to: '/users', label: 'Pengguna', icon: Users }] },
+  {
+    title: 'Admin',
+    access: 'staff',
+    items: [
+      { to: '/audit', label: 'Log Aktivitas', icon: History },
+      { to: '/users', label: 'Pengguna', icon: Users, access: 'admin' },
+    ],
+  },
 ]
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -313,6 +326,8 @@ export function Layout() {
           >
             {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
           </Button>
+          <div className="flex-1" />
+          <NotificationBell />
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-5">
           <Outlet />

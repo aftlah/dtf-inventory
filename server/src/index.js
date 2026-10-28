@@ -9,6 +9,7 @@ import { catalogRouter } from './routes/catalog.js'
 import { inventoryRouter } from './routes/inventory.js'
 import { marketRouter, ordersRouter } from './routes/orders.js'
 import { requestsRouter } from './routes/requests.js'
+import { auditRouter, financeRouter, notificationsRouter } from './routes/system.js'
 import { usersRouter } from './routes/users.js'
 
 const app = express()
@@ -21,8 +22,11 @@ app.use('/api/users', requireAuth, requireAdmin, usersRouter)
 app.use('/api/market', requireAuth, marketRouter)
 app.use('/api/orders', requireAuth, ordersRouter)
 app.use('/api/requests', requireAuth, requestsRouter)
+app.use('/api/notifications', requireAuth, notificationsRouter)
 // Sisanya hanya admin/staff.
 app.use('/api/cash', requireAuth, requireStaff, cashRouter)
+app.use('/api/audit', requireAuth, requireStaff, auditRouter)
+app.use('/api/finance', requireAuth, requireStaff, financeRouter)
 app.use('/api', requireAuth, requireStaff, catalogRouter, inventoryRouter)
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan' }))
 

@@ -3,6 +3,8 @@ import { query, withTx } from '../db.js'
 import { isStaff, requireStaff } from '../auth.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
 import { RESERVED, TOTAL_STOCK } from '../stock.js'
+import { audit } from '../audit.js'
+import { notifyLowStock, notifyStaff, notifyUsers } from '../notify.js'
 
 export const requestsRouter = Router()
 
@@ -10,6 +12,7 @@ const KINDS = ['sale', 'process', 'buyback']
 const FLAG = { sale: 'in_sale', process: 'in_process', buyback: 'in_buyback' }
 const LABEL = { sale: 'Penjualan', process: 'Pemrosesan', buyback: 'Jual Barang' }
 const MAX_LINES = 50
+const LINK = { sale: '/sales', process: '/process', buyback: '/buyback' }
 const STATUSES = ['pending', 'approved', 'reported', 'completed', 'rejected', 'cancelled']
 
 function parseLines(raw, empty = 'Pilih minimal satu barang') {
@@ -96,7 +99,7 @@ requestsRouter.post(
 
     const id = await withTx(async (conn) => {
       const [items] = await conn.query(
-        `SELECT id, name, image_url, in_sale, in_process, in_buyback, buyback_price, min_sale_qty FROM items
+        `SELECT id, name, image_url, in_sale, in_process, in_buyback, buyback_price, cost_price, min_sale_qty FROM items
           WHERE id IN (?) AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
         [lines.map((l) => l.item_id)],
       )
@@ -133,13 +136,29 @@ requestsRouter.post(
         total,
       ])
       await conn.query(
-        `INSERT INTO request_items (request_id, role, item_id, item_name, image_url, qty, price) VALUES ?`,
+        `INSERT INTO request_items (request_id, role, item_id, item_name, image_url, qty, price, cost) VALUES ?`,
         [
           lines.map((l) => {
             const item = byId.get(l.item_id)
-            return [r.insertId, 'input', l.item_id, item.name, item.image_url, l.qty, priceOf(l.item_id)]
+            return [r.insertId, 'input', l.item_id, item.name, item.image_url, l.qty, priceOf(l.item_id), Number(item.cost_price)]
           }),
         ],
+      )
+      await audit(
+        req.user,
+        { entity: 'request', id: r.insertId, label: `${LABEL[kind]} #${r.insertId}`, action: 'create', after: { jenis_barang: lines.length, total } },
+        conn,
+      )
+      await notifyStaff(
+        conn,
+        req.user,
+        {
+          kind: 'request_new',
+          title: `Pengajuan ${LABEL[kind]} baru #${r.insertId}`,
+          body: `${req.user.name} · ${lines.length} jenis barang`,
+          link: LINK[kind],
+        },
+        { discord: true },
       )
       return r.insertId
     })
@@ -204,6 +223,7 @@ requestsRouter.post(
       if (!isStaff(req.user) && request.user_id !== req.user.id)
         throw new HttpError(404, 'Pengajuan tidak ditemukan')
       if (request.status !== 'pending') throw new HttpError(409, 'Hanya pengajuan yang menunggu yang bisa dibatalkan')
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'cancel', details: { pemohon: request.user_name } }, conn)
       await conn.query(`UPDATE requests SET status = 'cancelled' WHERE id = ?`, [request.id])
     })
     res.json({ ok: true })
@@ -244,6 +264,12 @@ requestsRouter.post(
             refType: 'request',
           })
         }
+        await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'approve', details: { pemohon: request.user_name, total: Number(request.total) } }, conn)
+        await notifyUsers(conn, [request.user_id].filter((u) => u !== req.user.id), {
+          kind: 'request_approved',
+          title: `${LABEL[request.kind]} #${request.id} disetujui`,
+          link: LINK[request.kind],
+        })
         await conn.query(
           `UPDATE requests SET status = 'completed', review_note = ?, reviewed_by_name = ?, reviewed_at = NOW(),
                   completed_at = NOW(), confirmed_by_name = ? WHERE id = ?`,
@@ -277,6 +303,14 @@ requestsRouter.post(
         if (left > 0) throw new HttpError(409, `Stok "${line.item_name}" tidak cukup (kurang ${left})`)
       }
 
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'approve', details: { pemohon: request.user_name } }, conn)
+      await notifyUsers(conn, [request.user_id].filter((u) => u !== req.user.id), {
+        kind: 'request_approved',
+        title: `${LABEL[request.kind]} #${request.id} disetujui`,
+        body: 'Silakan laporkan hasilnya.',
+        link: LINK[request.kind],
+      })
+      await notifyLowStock(conn, lines.map((l) => l.item_id))
       await conn.query(
         `UPDATE requests SET status = 'approved', review_note = ?, reviewed_by_name = ?, reviewed_at = NOW()
           WHERE id = ?`,
@@ -295,6 +329,13 @@ requestsRouter.post(
     await withTx(async (conn) => {
       const request = await lockRequest(conn, req.params.id)
       if (request.status !== 'pending') throw new HttpError(409, 'Pengajuan sudah diproses')
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'reject', details: { pemohon: request.user_name, alasan: note } }, conn)
+      await notifyUsers(conn, [request.user_id].filter((u) => u !== req.user.id), {
+        kind: 'request_rejected',
+        title: `${LABEL[request.kind]} #${request.id} ditolak`,
+        body: note ?? undefined,
+        link: LINK[request.kind],
+      })
       await conn.query(
         `UPDATE requests SET status = 'rejected', review_note = ?, reviewed_by_name = ?, reviewed_at = NOW()
           WHERE id = ?`,
@@ -341,6 +382,18 @@ requestsRouter.post(
         )
       }
 
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'report', details: { uang: money, bukti: proof } }, conn)
+      await notifyStaff(
+        conn,
+        req.user,
+        {
+          kind: 'request_reported',
+          title: `Laporan ${LABEL[request.kind]} #${request.id} masuk`,
+          body: `${req.user.name} menunggu konfirmasi`,
+          link: LINK[request.kind],
+        },
+        { discord: true },
+      )
       await conn.query(
         `UPDATE requests SET status = 'reported', result_money = ?, proof_url = ?, reported_at = NOW()
           WHERE id = ?`,
@@ -384,6 +437,13 @@ requestsRouter.post(
         }
       }
 
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'confirm', details: { pemohon: request.user_name } }, conn)
+      await notifyUsers(conn, [request.user_id].filter((u) => u !== req.user.id), {
+        kind: 'request_completed',
+        title: `${LABEL[request.kind]} #${request.id} dikonfirmasi`,
+        body: request.kind === 'process' ? 'Hasil pemrosesan sudah masuk stok.' : undefined,
+        link: LINK[request.kind],
+      })
       await conn.query(
         `UPDATE requests SET status = 'completed', completed_at = NOW(), confirmed_by_name = ? WHERE id = ?`,
         [req.user.name, request.id],
@@ -403,6 +463,13 @@ requestsRouter.post(
       const request = await lockRequest(conn, req.params.id)
       if (request.status !== 'reported') throw new HttpError(409, 'Tidak ada laporan untuk dikembalikan')
       await conn.query(`DELETE FROM request_items WHERE request_id = ? AND role = 'result'`, [request.id])
+      await audit(req.user, { entity: 'request', id: request.id, label: `${LABEL[request.kind]} #${request.id}`, action: 'reopen', details: { pemohon: request.user_name, alasan: note } }, conn)
+      await notifyUsers(conn, [request.user_id].filter((u) => u !== req.user.id), {
+        kind: 'request_reopened',
+        title: `${LABEL[request.kind]} #${request.id}: laporan perlu diulang`,
+        body: note ?? undefined,
+        link: LINK[request.kind],
+      })
       await conn.query(
         `UPDATE requests SET status = 'approved', result_money = NULL, proof_url = NULL,
                 reported_at = NULL, review_note = ? WHERE id = ?`,

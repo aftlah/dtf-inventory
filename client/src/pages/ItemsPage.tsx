@@ -31,6 +31,7 @@ type Draft = {
   min_stock: string
   notes: string
   price: string
+  cost_price: string
   image_url: string
   in_market: boolean
   in_sale: boolean
@@ -46,6 +47,7 @@ const empty: Draft = {
   min_stock: '0',
   notes: '',
   price: '0',
+  cost_price: '0',
   image_url: '',
   in_market: false,
   in_sale: false,
@@ -54,7 +56,7 @@ const empty: Draft = {
   in_buyback: false,
   buyback_price: '0',
 }
-type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'image_url' | 'min_sale_qty' | 'buyback_price'
+type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'cost_price' | 'image_url' | 'min_sale_qty' | 'buyback_price'
 
 export function ItemsPage() {
   const { isAdmin } = useAuth()
@@ -80,6 +82,7 @@ export function ItemsPage() {
         ...draft,
         min_stock: Number(draft.min_stock),
         price: Number(draft.price),
+        cost_price: Number(draft.cost_price) || 0,
         min_sale_qty: Number(draft.min_sale_qty) || 1,
         buyback_price: Number(draft.buyback_price) || 0,
       }
@@ -187,6 +190,7 @@ export function ItemsPage() {
                             min_stock: String(i.min_stock),
                             notes: i.notes ?? '',
                             price: String(i.price),
+                            cost_price: String(i.cost_price),
                             image_url: i.image_url ?? '',
                             in_market: i.in_market,
                             in_sale: i.in_sale,
@@ -243,10 +247,13 @@ export function ItemsPage() {
                 <Field label="Harga jual ($)">
                   <Input type="number" min={0} step={1} value={draft.price} onChange={set('price')} required />
                 </Field>
-                <Field label="Gambar" hint="Contoh: /items/smg.png atau URL.">
-                  <Input value={draft.image_url} onChange={set('image_url')} maxLength={255} placeholder="/items/…" />
+                <Field label="Harga modal ($)" hint="Untuk menghitung profit di Laporan Keuangan.">
+                  <Input type="number" min={0} step={1} value={draft.cost_price} onChange={set('cost_price')} required />
                 </Field>
               </div>
+              <Field label="Gambar" hint="Contoh: /items/smg.png atau URL.">
+                <Input value={draft.image_url} onChange={set('image_url')} maxLength={255} placeholder="/items/…" />
+              </Field>
               <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
                 <p className="text-xs font-semibold text-muted-foreground">Tersedia untuk</p>
                 <div className="flex items-start gap-2">

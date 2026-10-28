@@ -95,3 +95,11 @@ Menu **Keuangan → Buku Kas** (admin/staff), seperti `inventory-bbc`:
 - Ringkasan per periode (hari ini / 7 hari / bulan ini / semua / kustom): pemasukan, pengeluaran, saldo, pengeluaran dan pemasukan per kategori.
 - Hanya admin yang bisa menghapus catatan (soft delete). Pencatatan manual, terpisah dari pesanan Market.
 - Jalankan `npm run db:init` sekali untuk membuat tabel `cash_entries`.
+
+## Notifikasi, Laporan Keuangan, dan Log Aktivitas
+
+- **Notifikasi (lonceng di header):** badge jumlah belum dibaca, daftar terbaru, klik untuk membuka halaman terkait, tandai dibaca. Diperbarui tiap 30 detik. Dibuat oleh server saat: pesanan/pengajuan baru atau dibatalkan, disetujui/ditolak, laporan masuk/dikonfirmasi/diminta ulang, dan stok menipis (sekali per barang sampai dibaca). Pelaku tidak menerima notifikasi atas aksinya sendiri.
+  - **Discord (opsional):** isi `DISCORD_WEBHOOK_URL` di `server/.env` (atau environment variable di cPanel) untuk mengirim notifikasi staff ke channel Discord. Dikirim hanya setelah transaksi berhasil.
+- **Laporan Keuangan** (Keuangan → Laporan Keuangan): Penjualan = pesanan Market yang disetujui + uang hasil Penjualan yang dilaporkan; Modal = harga modal × qty terjual; Profit = Penjualan − Modal. Juga nilai stok, jumlah dibayar ke member (Jual Barang), rincian per hari, dan barang paling menguntungkan. Isi **Harga modal** tiap barang di Katalog Barang; harga modal disalin ke tiap transaksi, jadi mengubahnya tidak mengubah laporan lama. Hari mengikuti WIB.
+- **Log Aktivitas** (Admin → Log Aktivitas): setiap perubahan barang, lokasi, pengguna, pesanan, pengajuan, dan buku kas dicatat (siapa, kapan, nilai lama → baru). Password tidak pernah dicatat. Tidak ada fitur ubah/hapus log dari aplikasi.
+- Jalankan `npm run db:init` sekali untuk membuat tabel baru dan kolom harga modal. Waktu di database kini disimpan sebagai UTC (sesi koneksi diatur otomatis).

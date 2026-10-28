@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
 import { publicUser, requireAuth, signToken } from '../auth.js'
 import { HttpError, wrap } from '../util.js'
+import { audit } from '../audit.js'
 
 export const authRouter = Router()
 
@@ -37,6 +38,7 @@ authRouter.post(
       await bcrypt.hash(next, 10),
       req.user.id,
     ])
+    await audit(req.user, { entity: 'user', id: req.user.id, label: req.user.username, action: 'password_change' })
     res.json({ ok: true })
   }),
 )

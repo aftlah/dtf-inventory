@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS items (
   min_sale_qty INT UNSIGNED NOT NULL DEFAULT 1,   -- minimal jumlah per pengajuan Penjualan
   in_buyback TINYINT(1) NOT NULL DEFAULT 0,       -- boleh dijual member ke toko (Jual Barang)
   buyback_price BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga beli toko per unit
+  cost_price BIGINT UNSIGNED NOT NULL DEFAULT 0,    -- harga modal (HPP) per unit, untuk laporan keuangan
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,
   live_key   TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) STORED, -- NULL untuk yang dihapus: nama boleh dipakai ulang
@@ -106,6 +107,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   image_url  VARCHAR(255) NULL,                 -- snapshot
   qty        INT UNSIGNED NOT NULL,
   unit_price BIGINT UNSIGNED NOT NULL,          -- harga saat dipesan; mengubah harga tidak mengubah pesanan lama
+  cost       BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga modal per unit saat dipesan (snapshot)
   CONSTRAINT oi_qty_chk CHECK (qty > 0),
   CONSTRAINT oi_order_fk FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
   CONSTRAINT oi_item_fk FOREIGN KEY (item_id) REFERENCES items (id),
@@ -160,6 +162,7 @@ CREATE TABLE IF NOT EXISTS request_items (
   image_url  VARCHAR(255) NULL,                   -- snapshot
   qty        INT UNSIGNED NOT NULL,
   price      BIGINT UNSIGNED NOT NULL DEFAULT 0,  -- buyback: harga beli per unit saat diajukan
+  cost       BIGINT UNSIGNED NOT NULL DEFAULT 0,  -- harga modal per unit saat diajukan (snapshot)
   CONSTRAINT ri_qty_chk CHECK (qty > 0),
   CONSTRAINT ri_request_fk FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE,
   CONSTRAINT ri_item_fk FOREIGN KEY (item_id) REFERENCES items (id),
@@ -188,4 +191,36 @@ CREATE TABLE IF NOT EXISTS cash_entries (
   CONSTRAINT cash_user_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
   KEY cash_date_idx (entry_date, id),
   KEY cash_type_idx (type, entry_date)
+) ENGINE=InnoDB;
+
+-- Log aktivitas: siapa mengubah apa dan kapan (nilai lama -> baru). Hanya ditulis oleh server.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor_id     BIGINT UNSIGNED NULL,
+  actor_name   VARCHAR(100) NOT NULL,             -- snapshot
+  entity       VARCHAR(30) NOT NULL,              -- item | location | user | order | request | cash
+  entity_id    BIGINT UNSIGNED NULL,
+  entity_label VARCHAR(150) NULL,
+  action       VARCHAR(30) NOT NULL,
+  changes      JSON NULL,                         -- { field: [lama, baru] } atau nilai saat dibuat/dihapus
+  KEY audit_created_idx (created_at),
+  KEY audit_entity_idx (entity, entity_id),
+  KEY audit_actor_idx (actor_id)
+) ENGINE=InnoDB;
+
+-- Notifikasi dalam aplikasi (lonceng di header).
+CREATE TABLE IF NOT EXISTS notifications (
+  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id    BIGINT UNSIGNED NOT NULL,
+  kind       VARCHAR(30) NOT NULL,
+  title      VARCHAR(150) NOT NULL,
+  body       VARCHAR(500) NULL,
+  link       VARCHAR(100) NULL,
+  ref        VARCHAR(40) NULL,                    -- kunci untuk mencegah notifikasi ganda (mis. item:12)
+  read_at    TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT notif_user_fk FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  KEY notif_user_idx (user_id, read_at, id),
+  KEY notif_ref_idx (kind, ref, read_at)
 ) ENGINE=InnoDB;

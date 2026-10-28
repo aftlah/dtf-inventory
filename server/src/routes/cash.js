@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query } from '../db.js'
 import { requireAdmin } from '../auth.js'
+import { audit } from '../audit.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
 
 // Buku kas. Router ini hanya dipasang untuk admin/staff.
@@ -130,6 +131,13 @@ cashRouter.post(
         req.user.name,
       ],
     )
+    await audit(req.user, {
+      entity: 'cash',
+      id: r.insertId,
+      label: `${b.type === 'income' ? 'Pemasukan' : 'Pengeluaran'} ${category}`,
+      action: 'create',
+      after: { jenis: b.type, kategori: category, nominal: amount, sumber_tujuan: counterparty, tanggal: date },
+    })
     res.status(201).json({ id: r.insertId })
   }),
 )
@@ -146,6 +154,7 @@ cashRouter.post(
       [status, status === 'clean' ? new Date() : null, req.params.id],
     )
     if (!r.affectedRows) throw new HttpError(404, 'Catatan pemasukan tidak ditemukan')
+    await audit(req.user, { entity: 'cash', id: Number(req.params.id), label: `Pemasukan #${req.params.id}`, action: 'wash_status', details: { status } })
     res.json({ ok: true })
   }),
 )
@@ -158,6 +167,7 @@ cashRouter.delete(
       req.params.id,
     ])
     if (!r.affectedRows) throw new HttpError(404, 'Catatan tidak ditemukan')
+    await audit(req.user, { entity: 'cash', id: Number(req.params.id), label: `Catatan kas #${req.params.id}`, action: 'delete' })
     res.json({ ok: true })
   }),
 )

@@ -18,6 +18,7 @@ export type Item = {
   min_sale_qty: number
   in_buyback: boolean
   buyback_price: number
+  cost_price: number
 }
 
 export type Location = {
@@ -149,4 +150,39 @@ export type CashSummary = {
   pools: Record<WashStatus, number>
   expense_by_category: { category: string; amount: number; count: number }[]
   income_by_category: { category: string; amount: number; count: number }[]
+}
+
+export type NotificationRow = {
+  id: number
+  kind: string
+  title: string
+  body: string | null
+  link: string | null
+  read_at: string | null
+  created_at: string
+}
+
+export type AuditRow = {
+  id: number
+  created_at: string
+  actor_name: string
+  entity: string
+  entity_id: number | null
+  entity_label: string | null
+  action: string
+  changes: Record<string, unknown> | null
+}
+
+export type FinanceReport = {
+  orders_count: number
+  orders_revenue: number
+  orders_cogs: number
+  sales_count: number
+  sales_revenue: number
+  sales_cogs: number
+  buyback_paid: number
+  stock_value: number
+  items_no_cost: number
+  by_day: { day: string; revenue: number; cogs: number; profit: number }[]
+  top_items: { name: string; qty: number; revenue: number; profit: number }[]
 }

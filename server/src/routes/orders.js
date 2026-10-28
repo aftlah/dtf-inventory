@@ -3,6 +3,8 @@ import { query, withTx } from '../db.js'
 import { isStaff, requireStaff } from '../auth.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
 import { MARKET_STOCK, RESERVED } from '../stock.js'
+import { audit } from '../audit.js'
+import { notifyLowStock, notifyStaff, notifyUsers } from '../notify.js'
 
 export const marketRouter = Router()
 export const ordersRouter = Router()
@@ -50,7 +52,7 @@ ordersRouter.post(
     const orderId = await withTx(async (conn) => {
       // Kunci baris barang (berurutan menurut id) agar dua pesanan tidak menjual stok yang sama.
       const [items] = await conn.query(
-        `SELECT id, name, price, image_url, in_market FROM items
+        `SELECT id, name, price, cost_price, image_url, in_market FROM items
           WHERE id IN (?) AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
         [lines.map((l) => l.item_id)],
       )
@@ -77,13 +79,29 @@ ordersRouter.post(
         [req.user.id, req.user.name, total, note],
       )
       await conn.query(
-        'INSERT INTO order_items (order_id, item_id, item_name, image_url, qty, unit_price) VALUES ?',
+        'INSERT INTO order_items (order_id, item_id, item_name, image_url, qty, unit_price, cost) VALUES ?',
         [
           lines.map((l) => {
             const item = byId.get(l.item_id)
-            return [order.insertId, l.item_id, item.name, item.image_url, l.qty, item.price]
+            return [order.insertId, l.item_id, item.name, item.image_url, l.qty, item.price, item.cost_price]
           }),
         ],
+      )
+      await audit(
+        req.user,
+        { entity: 'order', id: order.insertId, label: `Pesanan #${order.insertId}`, action: 'create', after: { total, jenis_barang: lines.length } },
+        conn,
+      )
+      await notifyStaff(
+        conn,
+        req.user,
+        {
+          kind: 'order_new',
+          title: `Pesanan baru #${order.insertId}`,
+          body: `${req.user.name} · $${total.toLocaleString('en-US')} · ${lines.length} jenis barang`,
+          link: '/orders',
+        },
+        { discord: true },
       )
       return order.insertId
     })
@@ -214,6 +232,17 @@ ordersRouter.post(
           throw new HttpError(409, `Stok "${line.item_name}" di lokasi Market tidak cukup (kurang ${left})`)
       }
 
+      await audit(
+        req.user,
+        { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: 'approve', details: { pembeli: order.user_name, total: Number(order.total) } },
+        conn,
+      )
+      await notifyUsers(conn, [order.user_id].filter((u) => u !== req.user.id), {
+        kind: 'order_approved',
+        title: `Pesananmu #${order.id} disetujui`,
+        link: '/orders',
+      })
+      await notifyLowStock(conn, lines.map((l) => l.item_id))
       await conn.query(
         `UPDATE orders SET status = 'approved', decided_by_name = ?, decided_at = NOW() WHERE id = ?`,
         [req.user.name, order.id],
@@ -230,6 +259,16 @@ ordersRouter.post(
     await withTx(async (conn) => {
       const order = await lockOrder(conn, req.params.id)
       if (order.status !== 'pending') throw new HttpError(409, 'Pesanan sudah diproses')
+      await audit(
+        req.user,
+        { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: 'reject', details: { pembeli: order.user_name } },
+        conn,
+      )
+      await notifyUsers(conn, [order.user_id].filter((u) => u !== req.user.id), {
+        kind: 'order_rejected',
+        title: `Pesananmu #${order.id} ditolak`,
+        link: '/orders',
+      })
       await conn.query(
         `UPDATE orders SET status = 'rejected', decided_by_name = ?, decided_at = NOW() WHERE id = ?`,
         [req.user.name, order.id],
@@ -249,6 +288,11 @@ ordersRouter.post(
       const order = await lockOrder(conn, req.params.id)
       if (paid && !['pending', 'approved'].includes(order.status))
         throw new HttpError(409, 'Pesanan yang ditolak atau dibatalkan tidak perlu dibayar')
+      await audit(
+        req.user,
+        { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: paid ? 'mark_paid' : 'mark_unpaid', details: { pembeli: order.user_name } },
+        conn,
+      )
       await conn.query(
         'UPDATE orders SET paid = ?, paid_at = ?, paid_by_name = ? WHERE id = ?',
         paid ? [1, new Date(), req.user.name, order.id] : [0, null, null, order.id],
@@ -289,6 +333,25 @@ ordersRouter.post(
         throw new HttpError(409, 'Pesanan ini tidak bisa dibatalkan')
       }
 
+      await audit(
+        req.user,
+        { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: 'cancel', details: { pembeli: order.user_name, status_sebelumnya: order.status } },
+        conn,
+      )
+      if (staff) {
+        await notifyUsers(conn, [order.user_id].filter((u) => u !== req.user.id), {
+          kind: 'order_cancelled',
+          title: `Pesananmu #${order.id} dibatalkan`,
+          link: '/orders',
+        })
+      } else {
+        await notifyStaff(conn, req.user, {
+          kind: 'order_cancelled',
+          title: `Pesanan #${order.id} dibatalkan member`,
+          body: order.user_name,
+          link: '/orders',
+        })
+      }
       await conn.query(
         `UPDATE orders SET status = 'cancelled', cancelled_by_name = ?, cancelled_at = NOW() WHERE id = ?`,
         [req.user.name, order.id],

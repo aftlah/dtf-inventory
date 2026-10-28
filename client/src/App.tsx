@@ -3,7 +3,9 @@ import { Layout } from '@/components/Layout'
 import { LoadingState } from '@/components/common'
 import { useAuth } from '@/contexts/AuthContext'
 import { CashPage } from '@/pages/CashPage'
+import { AuditPage } from '@/pages/AuditPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { FinancePage } from '@/pages/FinancePage'
 import { ItemsPage } from '@/pages/ItemsPage'
 import { LocationsPage } from '@/pages/LocationsPage'
 import { LoginPage } from '@/pages/LoginPage'
@@ -43,6 +45,8 @@ export function App() {
             <Route path="items" element={<ItemsPage />} />
             <Route path="locations" element={<LocationsPage />} />
             <Route path="cash" element={<CashPage />} />
+            <Route path="finance" element={<FinancePage />} />
+            <Route path="audit" element={<AuditPage />} />
           </>
         ) : null}
         {isAdmin ? <Route path="users" element={<UsersPage />} /> : null}
