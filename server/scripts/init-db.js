@@ -7,20 +7,27 @@ import bcrypt from 'bcryptjs'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const dbName = process.env.DB_NAME ?? 'dtf_inventory'
-if (!/^[A-Za-z0-9_]+$/.test(dbName)) throw new Error('DB_NAME tidak valid')
+if (!/^[A-Za-z0-9_$]+$/.test(dbName)) throw new Error('DB_NAME tidak valid')
+
+// Di shared hosting (cPanel) database dibuat lewat panel dan user tidak boleh CREATE DATABASE:
+// set DB_SKIP_CREATE=1 agar skrip hanya membuat tabel di database yang sudah ada.
+const skipCreate = process.env.DB_SKIP_CREATE === '1'
 
 const conn = await mysql.createConnection({
   host: process.env.DB_HOST ?? '127.0.0.1',
   port: Number(process.env.DB_PORT ?? 3306),
   user: process.env.DB_USER ?? 'root',
   password: process.env.DB_PASSWORD ?? '',
+  ...(skipCreate ? { database: dbName } : {}),
   multipleStatements: true,
 })
 
-await conn.query(
-  `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`,
-)
-await conn.query(`USE \`${dbName}\``)
+if (!skipCreate) {
+  await conn.query(
+    `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`,
+  )
+  await conn.query(`USE \`${dbName}\``)
+}
 await conn.query(fs.readFileSync(path.join(dir, '../schema.sql'), 'utf8'))
 
 // Upgrade database yang dibuat dari versi skema sebelumnya (CREATE TABLE IF NOT EXISTS tidak menambah kolom).

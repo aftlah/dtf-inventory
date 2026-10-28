@@ -66,3 +66,12 @@ npm run db:init                       # upgrade skema bila database dibuat dari 
 npm run db:seed-market                # katalog + harga (stok 0)
 npm run db:seed-market -- --stock     # sekaligus stok awal seperti BBC
 ```
+
+## Deploy ke cPanel (Setup Node.js App)
+
+1. `npm run build`, lalu zip `server/` (tanpa `node_modules` dan `.env`) + `client/dist/` dengan struktur `dtf/server` dan `dtf/client/dist` (paket jadi: `deploy/dtf-inventory.zip`).
+2. cPanel → **MySQL Databases**: buat database + user, beri **ALL PRIVILEGES**. Nama aslinya berawalan akun cPanel (mis. `akun_dtf`).
+3. File Manager → upload dan extract zip ke home (`~/dtf/server`, `~/dtf/client/dist`).
+4. **Setup Node.js App → Create Application**: Node.js 20/22, Application root `dtf/server`, Startup file `app.cjs`, pilih domain/subdomain. Isi environment variables: `DB_HOST=localhost`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SKIP_CREATE=1`, `JWT_SECRET` (acak), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
+5. **Run NPM Install**, lalu jalankan skrip `host:db-init` (buat tabel + admin), dan opsional `host:seed-market`. Terakhir **Restart**.
+6. Setelah update kode: build ulang, upload ulang `client/dist` / `server/src`, lalu Restart.

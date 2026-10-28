@@ -7,7 +7,9 @@
     "dev": "node --watch --env-file=.env src/index.js",
     "start": "node --env-file=.env src/index.js",
     "db:init": "node --env-file=.env scripts/init-db.js",
-    "db:seed-market": "node --env-file=.env scripts/seed-market.js"
+    "db:seed-market": "node --env-file=.env scripts/seed-market.js",
+    "host:db-init": "node scripts/init-db.js",
+    "host:seed-market": "node scripts/seed-market.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
