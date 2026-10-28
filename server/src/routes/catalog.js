@@ -24,10 +24,14 @@ function itemBody(b) {
     price: posInt(b?.price ?? 0, 'Harga', { min: 0 }),
     image_url: imageUrl(b?.image_url),
     in_market: b?.in_market ? 1 : 0,
+    in_sale: b?.in_sale ? 1 : 0,
+    in_process: b?.in_process ? 1 : 0,
+    min_sale_qty: posInt(b?.min_sale_qty ?? 1, 'Minimal penjualan', { min: 1 }),
   }
 }
 
-const ITEM_COLUMNS = 'id, name, category, unit, min_stock, notes, price, image_url, in_market'
+const ITEM_COLUMNS =
+  'id, name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty'
 
 catalogRouter.get(
   '/items',
@@ -35,7 +39,15 @@ catalogRouter.get(
     const rows = await query(
       `SELECT ${ITEM_COLUMNS} FROM items WHERE deleted_at IS NULL ORDER BY name`,
     )
-    res.json(rows.map((r) => ({ ...r, price: Number(r.price), in_market: !!r.in_market })))
+    res.json(
+      rows.map((r) => ({
+        ...r,
+        price: Number(r.price),
+        in_market: !!r.in_market,
+        in_sale: !!r.in_sale,
+        in_process: !!r.in_process,
+      })),
+    )
   }),
 )
 
@@ -46,9 +58,9 @@ catalogRouter.post(
     const d = itemBody(req.body)
     try {
       const r = await query(
-        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market],
+        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty],
       )
       res.status(201).json({ id: r.insertId })
     } catch (e) {
@@ -65,9 +77,10 @@ catalogRouter.put(
     let r
     try {
       r = await query(
-        `UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=?, price=?, image_url=?, in_market=?
+        `UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=?, price=?, image_url=?, in_market=?,
+                in_sale=?, in_process=?, min_sale_qty=?
           WHERE id=? AND deleted_at IS NULL`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, req.params.id],
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama barang sudah ada')
@@ -92,6 +105,12 @@ catalogRouter.delete(
       [req.params.id],
     )
     if (Number(pending) > 0) throw new HttpError(409, 'Barang masih ada di pesanan yang menunggu')
+    const [{ pendingReq }] = await query(
+      `SELECT COUNT(*) AS pendingReq FROM request_items ri JOIN requests r ON r.id = ri.request_id
+        WHERE ri.item_id = ? AND r.status IN ('pending', 'approved', 'reported')`,
+      [req.params.id],
+    )
+    if (Number(pendingReq) > 0) throw new HttpError(409, 'Barang masih ada di pengajuan yang belum selesai')
     const r = await query('UPDATE items SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [
       req.params.id,
     ])

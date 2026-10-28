@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js'
 import { catalogRouter } from './routes/catalog.js'
 import { inventoryRouter } from './routes/inventory.js'
 import { marketRouter, ordersRouter } from './routes/orders.js'
+import { requestsRouter } from './routes/requests.js'
 import { usersRouter } from './routes/users.js'
 
 const app = express()
@@ -18,6 +19,7 @@ app.use('/api/users', requireAuth, requireAdmin, usersRouter)
 // Semua akun (termasuk member): Market dan pesanan. Pembatasan per-aksi ada di dalam router.
 app.use('/api/market', requireAuth, marketRouter)
 app.use('/api/orders', requireAuth, ordersRouter)
+app.use('/api/requests', requireAuth, requestsRouter)
 // Sisanya hanya admin/staff.
 app.use('/api', requireAuth, requireStaff, catalogRouter, inventoryRouter)
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan' }))

@@ -75,3 +75,13 @@ npm run db:seed-market -- --stock     # sekaligus stok awal seperti BBC
 4. **Setup Node.js App → Create Application**: Node.js 20/22, Application root `dtf/server`, Startup file `app.cjs`, pilih domain/subdomain. Isi environment variables: `DB_HOST=localhost`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SKIP_CREATE=1`, `JWT_SECRET` (acak), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME`.
 5. **Run NPM Install**, lalu jalankan skrip `host:db-init` (buat tabel + admin), dan opsional `host:seed-market`. Terakhir **Restart**.
 6. Setelah update kode: build ulang, upload ulang `client/dist` / `server/src`, lalu Restart.
+
+## Penjualan & Pemrosesan
+
+Seperti `inventory-bbc`. Aktifkan per barang di **Katalog Barang → Tersedia untuk** (*Penjualan* dengan minimal jumlah, *Pemrosesan*).
+
+- **Penjualan:** member mengajukan barang → staff menyetujui (barang keluar dari stok) → member lapor *uang hasil + link bukti* → staff konfirmasi.
+- **Pemrosesan:** member mengajukan bahan → staff menyetujui (bahan keluar dari stok) → member lapor *item hasil + link bukti* → staff konfirmasi; item hasil masuk ke lokasi bertanda *Dijual di Market*.
+- Stok langsung dipesankan saat pengajuan dibuat (tidak bisa dipakai pesanan Market/pengajuan lain). Ditolak/dibatalkan melepas pesanan stok. Staff bisa meminta lapor ulang bila laporan tidak valid.
+- Staff tidak boleh menyetujui/mengonfirmasi pengajuannya sendiri (kecuali admin). Bahan diambil otomatis dari lokasi dengan stok terbanyak.
+- Jalankan `npm run db:init` sekali untuk menambah tabel dan kolom baru pada database lama.

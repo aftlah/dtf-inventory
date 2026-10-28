@@ -3,6 +3,8 @@ import {
   ArrowLeftRight,
   Boxes,
   ChevronsUpDown,
+  FlaskConical,
+  HandCoins,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -46,6 +48,13 @@ const groups: NavGroup[] = [
     items: [
       { to: '/market', label: 'Market', icon: Store },
       { to: '/orders', label: 'Pesanan', icon: Receipt },
+    ],
+  },
+  {
+    title: 'Jual & Proses',
+    items: [
+      { to: '/sales', label: 'Penjualan', icon: HandCoins },
+      { to: '/process', label: 'Pemrosesan', icon: FlaskConical },
     ],
   },
   {

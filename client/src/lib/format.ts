@@ -1,4 +1,4 @@
-import type { LogType, OrderStatus } from './types'
+import type { LogType, OrderStatus, RequestKind, RequestStatus } from './types'
 
 export const formatNumber = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
@@ -33,3 +33,14 @@ export const orderStatusLabel: Record<OrderStatus, string> = {
   rejected: 'Ditolak',
   cancelled: 'Dibatalkan',
 }
+
+export const requestStatusLabel: Record<RequestStatus, string> = {
+  pending: 'Menunggu',
+  approved: 'Disetujui',
+  reported: 'Dilaporkan',
+  completed: 'Selesai',
+  rejected: 'Ditolak',
+  cancelled: 'Dibatalkan',
+}
+
+export const requestKindLabel: Record<RequestKind, string> = { sale: 'Penjualan', process: 'Pemrosesan' }

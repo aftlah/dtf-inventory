@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS items (
   price      BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga jual di Market (USD)
   image_url  VARCHAR(255) NULL,
   in_market  TINYINT(1) NOT NULL DEFAULT 0,
+  in_sale    TINYINT(1) NOT NULL DEFAULT 0,       -- boleh diajukan di Penjualan
+  in_process TINYINT(1) NOT NULL DEFAULT 0,       -- boleh diajukan sebagai bahan Pemrosesan
+  min_sale_qty INT UNSIGNED NOT NULL DEFAULT 1,   -- minimal jumlah per pengajuan Penjualan
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,
   live_key   TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) STORED, -- NULL untuk yang dihapus: nama boleh dipakai ulang
@@ -119,4 +122,42 @@ CREATE TABLE IF NOT EXISTS order_allocations (
   CONSTRAINT oa_item_fk FOREIGN KEY (item_id) REFERENCES items (id),
   CONSTRAINT oa_loc_fk FOREIGN KEY (location_id) REFERENCES locations (id),
   KEY oa_order_idx (order_id)
+) ENGINE=InnoDB;
+
+-- Pengajuan Penjualan (sale) dan Pemrosesan (process).
+-- Alur: pending -> approved (bahan keluar dari stok) -> reported (member lapor + bukti) -> completed (staff konfirmasi).
+CREATE TABLE IF NOT EXISTS requests (
+  id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  kind              ENUM('sale','process') NOT NULL,
+  user_id           BIGINT UNSIGNED NOT NULL,
+  user_name         VARCHAR(100) NOT NULL,
+  status            ENUM('pending','approved','reported','completed','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  result_money      BIGINT UNSIGNED NULL,         -- sale: uang hasil yang dilaporkan
+  proof_url         VARCHAR(500) NULL,
+  review_note       VARCHAR(500) NULL,
+  reviewed_by_name  VARCHAR(100) NULL,
+  reviewed_at       TIMESTAMP NULL,
+  reported_at       TIMESTAMP NULL,
+  completed_at      TIMESTAMP NULL,
+  confirmed_by_name VARCHAR(100) NULL,
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT requests_user_fk FOREIGN KEY (user_id) REFERENCES users (id),
+  KEY requests_status_idx (status, created_at),
+  KEY requests_user_idx (user_id, created_at),
+  KEY requests_kind_idx (kind, status)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS request_items (
+  id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  request_id BIGINT UNSIGNED NOT NULL,
+  role       ENUM('input','result') NOT NULL DEFAULT 'input',
+  item_id    BIGINT UNSIGNED NOT NULL,
+  item_name  VARCHAR(150) NOT NULL,               -- snapshot
+  image_url  VARCHAR(255) NULL,                   -- snapshot
+  qty        INT UNSIGNED NOT NULL,
+  CONSTRAINT ri_qty_chk CHECK (qty > 0),
+  CONSTRAINT ri_request_fk FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE,
+  CONSTRAINT ri_item_fk FOREIGN KEY (item_id) REFERENCES items (id),
+  KEY ri_request_idx (request_id),
+  KEY ri_item_idx (item_id)
 ) ENGINE=InnoDB;

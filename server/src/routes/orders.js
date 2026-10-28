@@ -2,18 +2,13 @@ import { Router } from 'express'
 import { query, withTx } from '../db.js'
 import { isStaff, requireStaff } from '../auth.js'
 import { HttpError, posInt, str, wrap } from '../util.js'
+import { MARKET_STOCK, RESERVED } from '../stock.js'
 
 export const marketRouter = Router()
 export const ordersRouter = Router()
 
-// Stok yang dijual di Market = stok di lokasi bertanda "Dijual di Market".
-// Stok tersedia = stok Market dikurangi barang yang sudah dipesan (pesanan pending).
-const MARKET_STOCK = `(SELECT COALESCE(SUM(s.qty), 0) FROM stock_levels s
-   JOIN locations l ON l.id = s.location_id AND l.deleted_at IS NULL AND l.sell_in_market = 1
-  WHERE s.item_id = i.id)`
-const RESERVED = `(SELECT COALESCE(SUM(oi.qty), 0) FROM order_items oi
-   JOIN orders o ON o.id = oi.order_id AND o.status = 'pending'
-  WHERE oi.item_id = i.id)`
+// Stok tersedia di Market = stok lokasi "Dijual di Market" dikurangi yang sudah dipesan
+// (pesanan Market dan pengajuan yang masih menunggu).
 
 const MAX_LINES = 50
 

@@ -11,6 +11,7 @@ import { MarketPage } from '@/pages/MarketPage'
 import { MovementsPage } from '@/pages/MovementsPage'
 import { OrdersPage } from '@/pages/OrdersPage'
 import { ProfilePage } from '@/pages/ProfilePage'
+import { RequestsPage } from '@/pages/RequestsPage'
 import { StockPage } from '@/pages/StockPage'
 import { UsersPage } from '@/pages/UsersPage'
 
@@ -26,6 +27,8 @@ export function App() {
         <Route index element={isStaff ? <DashboardPage /> : <Navigate to="/market" replace />} />
         <Route path="market" element={<MarketPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="sales" element={<RequestsPage kind="sale" />} />
+        <Route path="process" element={<RequestsPage kind="process" />} />
         <Route path="profile" element={<ProfilePage />} />
         {isStaff ? (
           <>

@@ -13,6 +13,9 @@ export type Item = {
   price: number
   image_url: string | null
   in_market: boolean
+  in_sale: boolean
+  in_process: boolean
+  min_sale_qty: number
 }
 
 export type Location = {
@@ -43,7 +46,7 @@ export type LogRow = {
 }
 
 export type Dashboard = {
-  counts: { items: number; locations: number; units: number; in_today: number; out_today: number; pending_orders: number }
+  counts: { items: number; locations: number; units: number; in_today: number; out_today: number; pending_orders: number; open_requests: number }
   lowStock: { id: number; name: string; unit: string; min_stock: number; qty: number }[]
   recent: Omit<LogRow, 'item_id' | 'location_id' | 'note' | 'transfer_id'>[]
 }
@@ -77,4 +80,38 @@ export type Order = {
   paid_by_name: string | null
   lines: { item_id: number; item_name: string; image_url: string | null; qty: number; unit_price: number }[]
   allocations: { item_id: number; qty: number; location_name: string }[]
+}
+
+export type RequestKind = 'sale' | 'process'
+export type RequestStatus = 'pending' | 'approved' | 'reported' | 'completed' | 'rejected' | 'cancelled'
+
+export type RequestRow = {
+  id: number
+  kind: RequestKind
+  user_id: number
+  user_name: string
+  status: RequestStatus
+  result_money: number | null
+  proof_url: string | null
+  review_note: string | null
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  reported_at: string | null
+  completed_at: string | null
+  confirmed_by_name: string | null
+  created_at: string
+  items: { role: 'input' | 'result'; item_id: number; item_name: string; image_url: string | null; qty: number }[]
+}
+
+export type RequestOptions = {
+  items: {
+    id: number
+    name: string
+    category: string | null
+    unit: string
+    image_url: string | null
+    min_qty: number
+    available: number
+  }[]
+  resultItems: { id: number; name: string; category: string | null; unit: string; image_url: string | null }[]
 }

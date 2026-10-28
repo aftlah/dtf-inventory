@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Check, Loader2, Wallet, X } from 'lucide-react'
-import { EmptyState, ErrorState, LoadingState, PageHeader, PageStack, ToneBadge } from '@/components/common'
+import { EmptyState, ErrorState, FilterTabs, LoadingState, PageHeader, PageStack, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/AuthContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -199,21 +198,9 @@ export function OrdersPage() {
       <PageHeader
         title={isStaff ? 'Pesanan' : 'Pesanan Saya'}
         subtitle={isStaff ? 'Setujui atau tolak pesanan dari Market. Stok keluar saat disetujui.' : 'Status pesananmu di Market.'}
-      >
-        <Tabs value={filter} onValueChange={setFilter}>
-          <TabsList>
-            {FILTERS.map((f) => (
-              <TabsTrigger
-                key={f.value}
-                value={f.value}
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
-              >
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </PageHeader>
+      />
+
+      <FilterTabs value={filter} onChange={setFilter} tabs={FILTERS} label="Status pesanan" />
 
       {error ? (
         <ErrorState message={error} onRetry={reload} />

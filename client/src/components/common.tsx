@@ -289,6 +289,49 @@ export function OptionSelect({
   )
 }
 
+/* ---------- Filter tab (segmented control) ---------- */
+
+export function FilterTabs({
+  value,
+  onChange,
+  tabs,
+  label = 'Filter',
+}: {
+  value: string
+  onChange: (value: string) => void
+  tabs: { value: string; label: string }[]
+  label?: string
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label={label}
+      className="flex w-full max-w-full gap-0.5 overflow-x-auto rounded-lg border border-border bg-muted/40 p-0.5 sm:w-fit"
+    >
+      {tabs.map((t) => {
+        const active = t.value === value
+        return (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(t.value)}
+            className={cn(
+              'shrink-0 rounded-md px-3 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              active
+                ? 'bg-primary/15 text-primary ring-1 ring-primary/35'
+                : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground',
+            )}
+          >
+            {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ---------- Badge dengan nada ---------- */
 
 export function ToneBadge({

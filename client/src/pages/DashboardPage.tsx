@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, MapPin, Package, Receipt } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, HandCoins, MapPin, Package, Receipt } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   EmptyState,
@@ -28,9 +28,12 @@ export function DashboardPage() {
     <PageStack>
       <PageHeader title={`Halo, ${user?.name}`} subtitle="Ringkasan inventory hari ini." />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
         <Link to="/orders" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           <Kpi label="Pesanan menunggu" value={formatNumber(counts.pending_orders)} hint="perlu diproses" icon={Receipt} />
+        </Link>
+        <Link to="/sales" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          <Kpi label="Pengajuan perlu diproses" value={formatNumber(counts.open_requests)} hint="penjualan & pemrosesan" icon={HandCoins} />
         </Link>
         <Kpi label="Jenis barang" value={formatNumber(counts.items)} icon={Package} />
         <Kpi label="Lokasi" value={formatNumber(counts.locations)} icon={MapPin} />

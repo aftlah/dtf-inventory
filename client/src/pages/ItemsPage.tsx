@@ -33,6 +33,9 @@ type Draft = {
   price: string
   image_url: string
   in_market: boolean
+  in_sale: boolean
+  in_process: boolean
+  min_sale_qty: string
 }
 const empty: Draft = {
   name: '',
@@ -43,8 +46,11 @@ const empty: Draft = {
   price: '0',
   image_url: '',
   in_market: false,
+  in_sale: false,
+  in_process: false,
+  min_sale_qty: '1',
 }
-type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'image_url'
+type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'image_url' | 'min_sale_qty'
 
 export function ItemsPage() {
   const { isAdmin } = useAuth()
@@ -66,7 +72,12 @@ export function ItemsPage() {
     if (!draft) return
     setBusy(true)
     try {
-      const body = { ...draft, min_stock: Number(draft.min_stock), price: Number(draft.price) }
+      const body = {
+        ...draft,
+        min_stock: Number(draft.min_stock),
+        price: Number(draft.price),
+        min_sale_qty: Number(draft.min_sale_qty) || 1,
+      }
       if (draft.id) await api(`/items/${draft.id}`, { method: 'PUT', body })
       else await api('/items', { method: 'POST', body })
       toast.success('Tersimpan')
@@ -122,7 +133,7 @@ export function ItemsPage() {
               <TableHead>Kategori</TableHead>
               <TableHead>Satuan</TableHead>
               <TableHead className="text-right">Harga</TableHead>
-              <TableHead>Market</TableHead>
+              <TableHead>Tersedia di</TableHead>
               <TableHead className="text-right">Stok minimum</TableHead>
               {isAdmin ? <TableHead className="w-24" /> : null}
             </TableRow>
@@ -146,7 +157,12 @@ export function ItemsPage() {
                 <TableCell>{i.unit}</TableCell>
                 <TableCell className="text-right tabular-nums">{i.price > 0 ? formatMoney(i.price) : '—'}</TableCell>
                 <TableCell>
-                  <ToneBadge tone={i.in_market ? 'good' : 'default'}>{i.in_market ? 'Dijual' : 'Tidak'}</ToneBadge>
+                  <div className="flex flex-wrap gap-1">
+                    {i.in_market ? <ToneBadge tone="good">Market</ToneBadge> : null}
+                    {i.in_sale ? <ToneBadge tone="warn">Penjualan</ToneBadge> : null}
+                    {i.in_process ? <ToneBadge tone="warn">Pemrosesan</ToneBadge> : null}
+                    {!i.in_market && !i.in_sale && !i.in_process ? <span className="text-muted-foreground">—</span> : null}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(i.min_stock)}</TableCell>
                 {isAdmin ? (
@@ -167,6 +183,9 @@ export function ItemsPage() {
                             price: String(i.price),
                             image_url: i.image_url ?? '',
                             in_market: i.in_market,
+                            in_sale: i.in_sale,
+                            in_process: i.in_process,
+                            min_sale_qty: String(i.min_sale_qty),
                           })
                         }
                       >
@@ -220,19 +239,55 @@ export function ItemsPage() {
                   <Input value={draft.image_url} onChange={set('image_url')} maxLength={255} placeholder="/items/…" />
                 </Field>
               </div>
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="item-market"
-                  checked={draft.in_market}
-                  onCheckedChange={(v) => setDraft({ ...draft, in_market: v === true })}
-                  className="mt-0.5"
-                />
-                <Label htmlFor="item-market" className="flex-col items-start gap-0.5">
-                  Dijual di Market
-                  <span className="text-xs font-normal text-muted-foreground">
-                    Harga harus lebih dari 0 agar tampil di Market.
-                  </span>
-                </Label>
+              <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                <p className="text-xs font-semibold text-muted-foreground">Tersedia untuk</p>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="item-market"
+                    checked={draft.in_market}
+                    onCheckedChange={(v) => setDraft({ ...draft, in_market: v === true })}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="item-market" className="flex-col items-start gap-0.5">
+                    Market
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Dibeli member. Harga harus lebih dari 0.
+                    </span>
+                  </Label>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="item-sale"
+                    checked={draft.in_sale}
+                    onCheckedChange={(v) => setDraft({ ...draft, in_sale: v === true })}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="item-sale" className="flex-col items-start gap-0.5">
+                    Penjualan
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Member bisa mengajukan barang ini untuk dijual.
+                    </span>
+                  </Label>
+                </div>
+                {draft.in_sale ? (
+                  <Field label="Minimal jumlah per pengajuan penjualan">
+                    <Input type="number" min={1} step={1} value={draft.min_sale_qty} onChange={set('min_sale_qty')} required />
+                  </Field>
+                ) : null}
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="item-process"
+                    checked={draft.in_process}
+                    onCheckedChange={(v) => setDraft({ ...draft, in_process: v === true })}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="item-process" className="flex-col items-start gap-0.5">
+                    Pemrosesan
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Member bisa mengajukan barang ini sebagai bahan pemrosesan.
+                    </span>
+                  </Label>
+                </div>
               </div>
               <Field label="Catatan">
                 <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />
