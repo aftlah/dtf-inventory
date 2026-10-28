@@ -149,10 +149,40 @@ ordersRouter.get(
     // Pesanan yang masih harus dibayar: belum lunas dan masih berlaku (bukan ditolak/dibatalkan).
     if (req.query.payment === 'unpaid') where.push(`o.paid = 0 AND o.status IN ('pending', 'approved')`)
     else if (req.query.payment === 'paid') where.push('o.paid = 1')
+
+    // Cari: nomor pesanan, nama pembeli, atau nama barang di pesanan.
+    const q = String(req.query.q ?? '').trim().slice(0, 100)
+    if (q) {
+      const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`
+      where.push(
+        `(o.user_name LIKE ? OR o.id = ? OR EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.item_name LIKE ?))`,
+      )
+      params.push(like, /^#?\d+$/.test(q) ? Number(q.replace('#', '')) : 0, like)
+    }
+    // Rentang tanggal (YYYY-MM-DD, hari menurut WIB). Waktu disimpan UTC.
+    const wibDay = (value, endOfDay) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? '')) return null
+      const d = new Date(`${value}T${endOfDay ? '23:59:59' : '00:00:00'}+07:00`)
+      return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ')
+    }
+    const from = wibDay(req.query.from, false)
+    const to = wibDay(req.query.to, true)
+    if (from) {
+      where.push('o.created_at >= ?')
+      params.push(from)
+    }
+    if (to) {
+      where.push('o.created_at <= ?')
+      params.push(to)
+    }
+
+    // Tanpa parameter limit tetap 200 terbaru (perilaku lama); klien daftar pesanan memakai limit/offset.
+    const limit = Math.min(Math.max(Math.floor(Number(req.query.limit)) || 200, 1), 200)
+    const offset = Math.max(Math.floor(Number(req.query.offset)) || 0, 0)
     const orders = await query(
       `SELECT o.* FROM orders o ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-        ORDER BY o.id DESC LIMIT 200`,
-      params,
+        ORDER BY o.id DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
     )
     if (orders.length === 0) return res.json([])
 

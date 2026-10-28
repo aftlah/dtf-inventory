@@ -146,3 +146,8 @@ Pesan dikirim sebagai **embed**: judul berikon dan berwarna menurut jenisnya (�
 Role **highrank** punya akses sama seperti member (hanya Market dan pesanannya sendiri), tetapi batas belinya berbeda. Batas diatur per barang di menu Katalog Barang (aktifkan Market, lalu isi *Maks. beli Member* dan *Maks. beli Highrank*). Batas berlaku **per pesanan**; kosong berarti tanpa batas, dan admin/staff tidak dibatasi. Server menolak pesanan yang melebihi batas, dan tampilan Market membatasi jumlah serta menampilkan "Maks. N per pesanan".
 
 Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah role dan dua kolom batas beli).
+
+## Pencarian pesanan dan pemasangan di HP
+
+- **Pesanan:** bisa dicari berdasarkan nomor pesanan, nama pembeli, atau nama barang, dan difilter dengan rentang tanggal (hari menurut WIB). Daftar dimuat 30 pesanan per halaman, tombol *Muat lebih banyak* menambah 30 lagi (maksimal 200 terbaru). API: `GET /api/orders?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=&offset=`.
+- **PWA:** aplikasi punya `manifest.webmanifest` dan ikon, jadi bisa dipasang ke layar utama HP (Chrome: menu ⋮ → *Tambahkan ke layar utama* / *Instal aplikasi*; Safari iOS: Bagikan → *Tambah ke Layar Utama*) dan terbuka seperti aplikasi tanpa bilah alamat. Tidak ada service worker, jadi data selalu diambil langsung dari server dan tidak ada risiko tampilan lama tersangkut di cache.
