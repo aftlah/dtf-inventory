@@ -25,6 +25,8 @@ type ShopItem = {
   price: number | null
   available: number
   minQty: number
+  /** Batas beli per pesanan (Market, menurut role). Null = tanpa batas. */
+  maxBuy: number | null
 }
 
 type Config = {
@@ -97,12 +99,15 @@ const CONFIG: Record<CartKind, Config> = {
   },
 }
 
+/** Jumlah maksimal yang boleh dipesan: stok tersedia, dan batas beli role bila ada. */
+const capOf = (item: ShopItem) => Math.min(item.available, item.maxBuy ?? Infinity)
+
 function ProductCard({ item, kind }: { item: ShopItem; kind: CartKind }) {
   const cfg = CONFIG[kind]
   const cart = useCart()
   const inCart = cart.qty(kind, item.id)
   const min = item.minQty
-  const max = cfg.capByStock ? item.available : 999999
+  const max = cfg.capByStock ? capOf(item) : 999999
   const unavailable = cfg.capByStock && item.available < min
   const [qty, setQty] = useState(String(min))
 
@@ -157,6 +162,7 @@ function ProductCard({ item, kind }: { item: ShopItem; kind: CartKind }) {
           <p className="text-xs text-muted-foreground">
             {kind === 'buyback' ? `Stok toko: ${formatNumber(item.available)}` : null}
             {kind === 'sale' && min > 1 ? `Minimal ${formatNumber(min)}` : null}
+            {kind === 'market' && item.maxBuy !== null ? `Maks. ${formatNumber(item.maxBuy)} per pesanan` : null}
           </p>
         </div>
 
@@ -210,7 +216,7 @@ export function ShopPage({ kind }: { kind: CartKind }) {
   const { data, error, loading, reload } = useAsync<ShopItem[]>(async () => {
     if (kind === 'market') {
       const rows = await api<MarketItem[]>('/market/items')
-      return rows.map((i) => ({ ...i, minQty: 1 }))
+      return rows.map((i) => ({ ...i, minQty: 1, maxBuy: i.max_buy }))
     }
     const opts = await api<RequestOptions>(`/requests/options?kind=${kind}`)
     return opts.items.map((i) => ({
@@ -221,6 +227,7 @@ export function ShopPage({ kind }: { kind: CartKind }) {
       price: kind === 'buyback' ? i.price : null,
       available: i.available,
       minQty: i.min_qty,
+      maxBuy: null,
     }))
   }, [kind])
 
@@ -357,11 +364,11 @@ export function ShopPage({ kind }: { kind: CartKind }) {
                     inputMode="numeric"
                     className="w-20"
                     min={l.item.minQty}
-                    max={cfg.capByStock ? l.item.available : undefined}
+                    max={cfg.capByStock ? capOf(l.item) : undefined}
                     value={l.qty}
                     onChange={(e) => {
                       const v = Math.max(0, Math.floor(Number(e.target.value) || 0))
-                      cart.set(kind, l.item_id, cfg.capByStock ? Math.min(l.item.available, v) : v)
+                      cart.set(kind, l.item_id, cfg.capByStock ? Math.min(capOf(l.item), v) : v)
                     }}
                     aria-label={`Jumlah ${l.item.name}`}
                   />

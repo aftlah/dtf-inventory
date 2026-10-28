@@ -31,7 +31,15 @@ function itemBody(b) {
     min_sale_qty: posInt(b?.min_sale_qty ?? 1, 'Minimal penjualan', { min: 1 }),
     in_buyback: b?.in_buyback ? 1 : 0,
     buyback_price: posInt(b?.buyback_price ?? 0, 'Harga beli', { min: 0 }),
+    max_buy_member: maxBuy(b?.max_buy_member, 'Batas beli member'),
+    max_buy_highrank: maxBuy(b?.max_buy_highrank, 'Batas beli highrank'),
   }
+}
+
+// Batas beli per pesanan: kosong/null = tanpa batas.
+function maxBuy(value, field) {
+  if (value === null || value === undefined || value === '') return null
+  return posInt(value, field)
 }
 
 const ITEM_FIELDS = Object.keys(itemBody({ name: 'x' }))

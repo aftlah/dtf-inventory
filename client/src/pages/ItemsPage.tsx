@@ -40,6 +40,8 @@ type Draft = {
   min_sale_qty: string
   in_buyback: boolean
   buyback_price: string
+  max_buy_member: string // kosong = tanpa batas
+  max_buy_highrank: string
 }
 const empty: Draft = {
   name: '',
@@ -56,11 +58,13 @@ const empty: Draft = {
   min_sale_qty: '1',
   in_buyback: false,
   buyback_price: '0',
+  max_buy_member: '',
+  max_buy_highrank: '',
 }
 const NO_CATEGORY = 'Tanpa kategori'
 const categoryOf = (i: Item) => i.category?.trim() || NO_CATEGORY
 
-type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'cost_price' | 'image_url' | 'min_sale_qty' | 'buyback_price'
+type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'cost_price' | 'image_url' | 'min_sale_qty' | 'buyback_price' | 'max_buy_member' | 'max_buy_highrank'
 
 export function ItemsPage() {
   const { isAdmin } = useAuth()
@@ -109,6 +113,8 @@ export function ItemsPage() {
         cost_price: Number(draft.cost_price) || 0,
         min_sale_qty: Number(draft.min_sale_qty) || 1,
         buyback_price: Number(draft.buyback_price) || 0,
+        max_buy_member: draft.max_buy_member.trim() ? Number(draft.max_buy_member) : null,
+        max_buy_highrank: draft.max_buy_highrank.trim() ? Number(draft.max_buy_highrank) : null,
       }
       if (draft.id) await api(`/items/${draft.id}`, { method: 'PUT', body })
       else await api('/items', { method: 'POST', body })
@@ -261,6 +267,8 @@ export function ItemsPage() {
                             min_sale_qty: String(i.min_sale_qty),
                             in_buyback: i.in_buyback,
                             buyback_price: String(i.buyback_price),
+                            max_buy_member: i.max_buy_member === null ? '' : String(i.max_buy_member),
+                            max_buy_highrank: i.max_buy_highrank === null ? '' : String(i.max_buy_highrank),
                           })
                         }
                       >
@@ -342,6 +350,16 @@ export function ItemsPage() {
                     </span>
                   </Label>
                 </div>
+                {draft.in_market ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Maks. beli Member" hint="Per pesanan. Kosong = tanpa batas.">
+                      <Input type="number" min={1} step={1} value={draft.max_buy_member} onChange={set('max_buy_member')} placeholder="Tanpa batas" />
+                    </Field>
+                    <Field label="Maks. beli Highrank" hint="Per pesanan. Kosong = tanpa batas.">
+                      <Input type="number" min={1} step={1} value={draft.max_buy_highrank} onChange={set('max_buy_highrank')} placeholder="Tanpa batas" />
+                    </Field>
+                  </div>
+                ) : null}
                 <div className="flex items-start gap-2">
                   <Checkbox
                     id="item-sale"

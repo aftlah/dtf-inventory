@@ -14,19 +14,33 @@ export const ordersRouter = Router()
 
 const MAX_LINES = 50
 
+// Batas beli per pesanan menurut role pembeli. Staff/admin tanpa batas; NULL di kolom = tanpa batas.
+const LIMIT_COLUMN = { member: 'max_buy_member', highrank: 'max_buy_highrank' }
+const buyLimit = (user, item) => {
+  const column = LIMIT_COLUMN[user.role]
+  return column && item[column] != null ? Number(item[column]) : null
+}
+
 /* ---------- Market: daftar barang ---------- */
 
 marketRouter.get(
   '/items',
-  wrap(async (_req, res) => {
+  wrap(async (req, res) => {
     const rows = await query(
-      `SELECT i.id, i.name, i.category, i.unit, i.price, i.image_url,
+      `SELECT i.id, i.name, i.category, i.unit, i.price, i.image_url, i.max_buy_member, i.max_buy_highrank,
               GREATEST(${MARKET_STOCK} - ${RESERVED}, 0) AS available
          FROM items i
         WHERE i.deleted_at IS NULL AND i.in_market = 1 AND i.price > 0
         ORDER BY i.category, i.name`,
     )
-    res.json(rows.map((r) => ({ ...r, price: Number(r.price), available: Number(r.available) })))
+    res.json(
+      rows.map(({ max_buy_member, max_buy_highrank, ...r }) => ({
+        ...r,
+        price: Number(r.price),
+        available: Number(r.available),
+        max_buy: buyLimit(req.user, { max_buy_member, max_buy_highrank }),
+      })),
+    )
   }),
 )
 
@@ -52,7 +66,7 @@ ordersRouter.post(
     const orderId = await withTx(async (conn) => {
       // Kunci baris barang (berurutan menurut id) agar dua pesanan tidak menjual stok yang sama.
       const [items] = await conn.query(
-        `SELECT id, name, price, cost_price, image_url, in_market FROM items
+        `SELECT id, name, price, cost_price, image_url, in_market, max_buy_member, max_buy_highrank FROM items
           WHERE id IN (?) AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
         [lines.map((l) => l.item_id)],
       )
@@ -62,6 +76,9 @@ ordersRouter.post(
         const item = byId.get(l.item_id)
         if (!item || !item.in_market || Number(item.price) <= 0)
           throw new HttpError(409, 'Ada barang yang tidak dijual lagi')
+        const limit = buyLimit(req.user, item)
+        if (limit !== null && l.qty > limit)
+          throw new HttpError(409, `Maksimal pembelian "${item.name}" adalah ${limit} per pesanan`)
         const [[{ available }]] = await conn.query(
           `SELECT ${MARKET_STOCK} - ${RESERVED} AS available FROM items i WHERE i.id = ?`,
           [l.item_id],

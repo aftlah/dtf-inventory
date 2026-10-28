@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'staff' | 'member'
+export type Role = 'admin' | 'staff' | 'member' | 'highrank'
 
 export type AccountRequest = { id: number; name: string; username: string; created_at: string }
 
@@ -21,6 +21,9 @@ export type Item = {
   in_buyback: boolean
   buyback_price: number
   cost_price: number
+  /** Batas beli per pesanan Market untuk role member / highrank. Null = tanpa batas. */
+  max_buy_member: number | null
+  max_buy_highrank: number | null
 }
 
 export type Location = {
@@ -64,6 +67,8 @@ export type MarketItem = {
   price: number
   image_url: string | null
   available: number
+  /** Batas beli per pesanan untuk akun yang sedang login. Null = tanpa batas. */
+  max_buy: number | null
 }
 
 export type OrderStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'

@@ -32,7 +32,8 @@ export const requireAuth = wrap(async (req, _res, next) => {
 export const requireAdmin = (req, _res, next) =>
   req.user.role === 'admin' ? next() : next(new HttpError(403, 'Hanya admin'))
 
-// Staff = admin atau staff. Role "member" hanya boleh memakai Market dan pesanannya sendiri.
+// Staff = admin atau staff. Role "member" dan "highrank" hanya boleh memakai Market dan pesanannya sendiri
+// (beda keduanya hanya batas beli per barang).
 export const isStaff = (user) => user.role === 'admin' || user.role === 'staff'
 
 export const requireStaff = (req, _res, next) =>

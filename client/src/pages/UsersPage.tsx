@@ -137,6 +137,7 @@ export function UsersPage() {
                       onChange={(v) => setRoles((prev) => ({ ...prev, [r.id]: v }))}
                       options={[
                         { value: 'member', label: 'Member' },
+                        { value: 'highrank', label: 'Highrank' },
                         { value: 'staff', label: 'Staff' },
                       ]}
                     />
@@ -200,7 +201,7 @@ export function UsersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{draft?.id ? 'Ubah pengguna' : 'Tambah pengguna'}</DialogTitle>
-            <DialogDescription>Admin mengelola katalog, lokasi, dan pengguna. Staff mencatat stok dan memproses pesanan. Member hanya bisa belanja di Market.</DialogDescription>
+            <DialogDescription>Admin mengelola katalog, lokasi, dan pengguna. Staff mencatat stok dan memproses pesanan. Member dan Highrank hanya bisa belanja di Market; Highrank punya batas beli lebih besar.</DialogDescription>
           </DialogHeader>
           {draft ? (
             <form id="user-form" onSubmit={save} className="flex flex-col gap-4">
@@ -229,6 +230,7 @@ export function UsersPage() {
                   disabled={isSelf}
                   options={[
                     { value: 'member', label: 'Member (hanya Market)' },
+                    { value: 'highrank', label: 'Highrank (Market, batas beli lebih besar)' },
                     { value: 'staff', label: 'Staff' },
                     { value: 'admin', label: 'Admin' },
                   ]}

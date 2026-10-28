@@ -65,6 +65,8 @@ const FIELD: Record<string, string> = {
   in_process: 'Pemrosesan',
   in_buyback: 'Jual Barang',
   min_sale_qty: 'Min. penjualan',
+  max_buy_member: 'Maks. beli member',
+  max_buy_highrank: 'Maks. beli highrank',
   kind: 'Jenis',
   sell_in_market: 'Dijual di Market',
   total: 'Total',

@@ -185,7 +185,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         items: g.items
           .filter((i) => allowed(i.access))
           // Member hanya melihat pesanannya sendiri.
-          .map((i) => (i.to === '/orders' && user?.role === 'member' ? { ...i, label: 'Pesanan Saya' } : i)),
+          .map((i) => (i.to === '/orders' && !isStaff ? { ...i, label: 'Pesanan Saya' } : i)),
       }))
       .filter((g) => g.items.length)
   }, [isAdmin, isStaff, user?.role])

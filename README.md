@@ -140,3 +140,9 @@ Bila `DISCORD_WEBHOOK_URL` diisi, pesan dikirim ke channel untuk: pesanan Market
 #### Tampilan pesan Discord
 
 Pesan dikirim sebagai **embed**: judul berikon dan berwarna menurut jenisnya (🛒 pesanan oranye, 📦 pengajuan biru, 📝 laporan kuning, ⚠️ stok menipis merah, 👤 permintaan akun ungu), kolom rapi (pembeli/pemohon, total, daftar barang, bukti, dan seterusnya), serta waktu dan footer. Isi `APP_URL` (mis. `https://dtf-inventory.aftlah.my.id`) agar judul pesan bisa diklik dan membuka halaman terkait di aplikasi.
+
+## Role Highrank dan batas beli
+
+Role **highrank** punya akses sama seperti member (hanya Market dan pesanannya sendiri), tetapi batas belinya berbeda. Batas diatur per barang di menu Katalog Barang (aktifkan Market, lalu isi *Maks. beli Member* dan *Maks. beli Highrank*). Batas berlaku **per pesanan**; kosong berarti tanpa batas, dan admin/staff tidak dibatasi. Server menolak pesanan yang melebihi batas, dan tampilan Market membatasi jumlah serta menampilkan "Maks. N per pesanan".
+
+Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah role dan dua kolom batas beli).

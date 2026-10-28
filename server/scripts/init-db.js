@@ -63,8 +63,10 @@ await addColumn('inventory_logs', 'ref_id', 'BIGINT UNSIGNED NULL')
 await addColumn('orders', 'paid', 'TINYINT(1) NOT NULL DEFAULT 0')
 await addColumn('orders', 'paid_at', 'TIMESTAMP NULL')
 await addColumn('orders', 'paid_by_name', 'VARCHAR(100) NULL')
+await addColumn('items', 'max_buy_member', 'INT UNSIGNED NULL')
+await addColumn('items', 'max_buy_highrank', 'INT UNSIGNED NULL')
 await conn.query(
-  `ALTER TABLE users MODIFY role ENUM('admin','staff','member') NOT NULL DEFAULT 'staff'`,
+  `ALTER TABLE users MODIFY role ENUM('admin','staff','member','highrank') NOT NULL DEFAULT 'staff'`,
 )
 
 console.log(`Skema siap di database "${dbName}"`)

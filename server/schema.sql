@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(100) NOT NULL,
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(100) NOT NULL,
-  role          ENUM('admin','staff','member') NOT NULL DEFAULT 'staff',
+  role          ENUM('admin','staff','member','highrank') NOT NULL DEFAULT 'staff',
   active        TINYINT(1) NOT NULL DEFAULT 1,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS items (
   in_buyback TINYINT(1) NOT NULL DEFAULT 0,       -- boleh dijual member ke toko (Jual Barang)
   buyback_price BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga beli toko per unit
   cost_price BIGINT UNSIGNED NOT NULL DEFAULT 0,    -- harga modal (HPP) per unit, untuk laporan keuangan
+  max_buy_member   INT UNSIGNED NULL,               -- batas beli per pesanan Market untuk role member (NULL = tanpa batas)
+  max_buy_highrank INT UNSIGNED NULL,               -- idem untuk role highrank
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,
   live_key   TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) STORED, -- NULL untuk yang dihapus: nama boleh dipakai ulang

@@ -6,7 +6,7 @@ import { HttpError, duplicateAs, str, wrap } from '../util.js'
 
 export const usersRouter = Router()
 
-const ROLES = ['admin', 'staff', 'member']
+const ROLES = ['admin', 'staff', 'member', 'highrank']
 
 function parseRole(role) {
   if (!ROLES.includes(role)) throw new HttpError(400, 'Role tidak valid')
@@ -101,7 +101,7 @@ usersRouter.post(
   '/requests/:id/approve',
   wrap(async (req, res) => {
     const role = req.body?.role ?? 'member'
-    if (!['member', 'staff'].includes(role)) throw new HttpError(400, 'Role tidak valid')
+    if (!['member', 'highrank', 'staff'].includes(role)) throw new HttpError(400, 'Role tidak valid')
     const userId = await withTx(async (conn) => {
       const [[request]] = await conn.query('SELECT * FROM account_requests WHERE id = ? FOR UPDATE', [req.params.id])
       if (!request) throw new HttpError(404, 'Permintaan tidak ditemukan')
