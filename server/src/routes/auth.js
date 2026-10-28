@@ -2,7 +2,8 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
 import { publicUser, requireAuth, signToken } from '../auth.js'
-import { HttpError, wrap } from '../util.js'
+import { HttpError, duplicateAs, str, wrap } from '../util.js'
+import { notifyUsers } from '../notify.js'
 import { audit } from '../audit.js'
 import { createLimiter } from '../security.js'
 
@@ -13,6 +14,9 @@ const WINDOW_MS = 15 * 60 * 1000
 const byPair = createLimiter({ windowMs: WINDOW_MS, max: 8 })
 const byIp = createLimiter({ windowMs: WINDOW_MS, max: 30 })
 const byAccount = createLimiter({ windowMs: WINDOW_MS, max: 8 })
+// Pengajuan akun terbuka untuk umum: batasi 5 kiriman per jam per IP dan 100 permintaan yang menunggu.
+const byRequest = createLimiter({ windowMs: 60 * 60 * 1000, max: 5 })
+const MAX_PENDING_REQUESTS = 100
 
 function assertNotBlocked(...checks) {
   const wait = Math.max(...checks.map(([limiter, key]) => limiter.blockedFor(key)))
@@ -66,5 +70,53 @@ authRouter.post(
     ])
     await audit(req.user, { entity: 'user', id: req.user.id, label: req.user.username, action: 'password_change' })
     res.json({ ok: true })
+  }),
+)
+
+// Pengajuan akun dari halaman login. Belum membuat pengguna: admin yang menyetujui.
+authRouter.post(
+  '/request-account',
+  wrap(async (req, res) => {
+    const ip = req.ip ?? 'unknown'
+    assertNotBlocked([byRequest, ip])
+    byRequest.fail(ip) // setiap kiriman dihitung, berhasil atau tidak
+
+    const b = req.body ?? {}
+    if (b.website) return res.status(201).json({ ok: true }) // kolom jebakan untuk bot: pura-pura berhasil
+
+    const name = str(b.name, { field: 'Nama', max: 100, required: true })
+    if (name.length < 2) throw new HttpError(400, 'Nama terlalu pendek')
+    const username = String(b.username ?? '').trim().toLowerCase()
+    if (!/^[a-z0-9._-]{3,30}$/.test(username))
+      throw new HttpError(400, 'Username 3–30 karakter: huruf kecil, angka, titik, atau strip')
+    const password = String(b.password ?? '')
+    if (password.length < 8 || password.length > 72) throw new HttpError(400, 'Password 8–72 karakter')
+
+    const [{ pending }] = await query("SELECT COUNT(*) AS pending FROM account_requests WHERE status = 'pending'")
+    if (Number(pending) >= MAX_PENDING_REQUESTS)
+      throw new HttpError(503, 'Permintaan akun sedang penuh. Silakan hubungi admin.')
+    const [taken] = await query('SELECT 1 FROM users WHERE username = ?', [username])
+    if (taken) throw new HttpError(409, 'Username sudah dipakai, pilih yang lain')
+
+    let id
+    try {
+      const r = await query(
+        'INSERT INTO account_requests (name, username, password_hash, ip) VALUES (?, ?, ?, ?)',
+        [name, username, await bcrypt.hash(password, 10), ip.slice(0, 45)],
+      )
+      id = r.insertId
+    } catch (e) {
+      throw duplicateAs(e, 'Sudah ada permintaan dengan username itu, tunggu persetujuan admin')
+    }
+
+    const admins = await query("SELECT id FROM users WHERE active = 1 AND role = 'admin'")
+    await notifyUsers(undefined, admins.map((a) => a.id), {
+      kind: 'account_request',
+      title: 'Permintaan akun baru',
+      body: `${name} (@${username}) ingin membuat akun`,
+      link: '/users',
+    })
+    await audit(null, { entity: 'user', id, label: username, action: 'account_request', after: { name, username } })
+    res.status(201).json({ ok: true })
   }),
 )

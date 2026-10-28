@@ -227,3 +227,21 @@ CREATE TABLE IF NOT EXISTS notifications (
   KEY notif_user_idx (user_id, read_at, id),
   KEY notif_ref_idx (kind, ref, read_at)
 ) ENGINE=InnoDB;
+
+-- Permintaan akun dari halaman login. Admin menyetujui (membuat pengguna) atau menolak.
+-- Password dipilih pemohon dan disimpan sebagai hash; tidak pernah disimpan polos.
+CREATE TABLE IF NOT EXISTS account_requests (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name          VARCHAR(100) NOT NULL,
+  username      VARCHAR(50)  NOT NULL,
+  password_hash VARCHAR(100) NOT NULL,
+  status        ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  note          VARCHAR(500) NULL,
+  ip            VARCHAR(45)  NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  decided_by_name VARCHAR(100) NULL,
+  decided_at    TIMESTAMP NULL,
+  pending_key   TINYINT GENERATED ALWAYS AS (IF(status = 'pending', 1, NULL)) STORED, -- satu permintaan pending per username
+  UNIQUE KEY account_req_pending_uq (username, pending_key),
+  KEY account_req_status_idx (status, created_at)
+) ENGINE=InnoDB;

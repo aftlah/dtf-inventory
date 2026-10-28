@@ -42,6 +42,9 @@ const ACTION: Record<string, { label: string; tone: 'default' | 'good' | 'bad' |
   mark_unpaid: { label: 'Belum dibayar', tone: 'default' },
   wash_status: { label: 'Status uang', tone: 'warn' },
   password_change: { label: 'Ganti password', tone: 'default' },
+  account_request: { label: 'Ajukan akun', tone: 'warn' },
+  account_approve: { label: 'Akun disetujui', tone: 'good' },
+  account_reject: { label: 'Akun ditolak', tone: 'bad' },
 }
 
 const FIELD: Record<string, string> = {

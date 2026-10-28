@@ -1,5 +1,7 @@
 export type Role = 'admin' | 'staff' | 'member'
 
+export type AccountRequest = { id: number; name: string; username: string; created_at: string }
+
 export type User = { id: number; name: string; username: string; role: Role }
 export type UserRow = User & { active: number; created_at: string }
 

@@ -120,3 +120,13 @@ Member (role `member`) masuk ke dashboard pribadi di `/`: pesanan menunggu, tota
 ### Pemasukan otomatis dari pesanan
 
 Saat staff menandai pesanan Market **sudah dibayar**, server otomatis mencatat pemasukan di Buku Kas (kategori *Penjualan Market*, status uang *kotor*, bertanda **Otomatis**, tidak ganda walau ditandai berkali-kali). Menandai **belum dibayar** menghapus catatan itu. Pesanan yang sudah lunas lalu dibatalkan **tidak** otomatis membuat pengeluaran pengembalian dana: catat manual di Buku Kas. Pesanan yang ditandai lunas sebelum fitur ini ada tidak punya catatan kas otomatis.
+
+## Pengajuan akun dari halaman login
+
+Halaman login punya tautan **Ajukan akun**. Pemohon mengisi nama, username, dan password sendiri; akun **belum aktif** sampai admin menyetujui.
+
+- Admin menerima notifikasi (lonceng, dan Discord bila `DISCORD_WEBHOOK_URL` diisi) dan melihat daftarnya di **Pengguna → Permintaan akun**. Admin memilih role (**Member** atau **Staff**) lalu **Setujui** atau **Tolak**. Admin tidak bisa dibuat lewat jalur ini.
+- Password pemohon disimpan sebagai hash bcrypt dan dipakai apa adanya saat disetujui; tidak pernah disimpan polos.
+- Pengaman anti-spam: maksimal 5 kiriman per jam per IP (isi `TRUST_PROXY=1` di hosting agar IP asli terbaca), maksimal 100 permintaan yang menunggu, satu permintaan menunggu per username, username tidak boleh sudah dipakai, dan kolom jebakan untuk bot.
+- Tercatat di Log Aktivitas (Ajukan akun, Akun disetujui, Akun ditolak).
+- Jalankan `host:db-init` (atau `db:init` lokal) sekali untuk membuat tabel `account_requests`.
