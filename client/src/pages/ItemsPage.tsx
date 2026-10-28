@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Loader2, Package, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { ChevronDown, Loader2, Package, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { EmptyState, ErrorState, Field, LoadingState, PageHeader, PageStack, ToneBadge } from '@/components/common'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,7 @@ import { api } from '@/lib/api'
 import { formatNumber, formatMoney } from '@/lib/format'
 import type { Item } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
+import { cn } from '@/lib/utils'
 
 type Draft = {
   id?: number
@@ -56,6 +57,9 @@ const empty: Draft = {
   in_buyback: false,
   buyback_price: '0',
 }
+const NO_CATEGORY = 'Tanpa kategori'
+const categoryOf = (i: Item) => i.category?.trim() || NO_CATEGORY
+
 type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'cost_price' | 'image_url' | 'min_sale_qty' | 'buyback_price'
 
 export function ItemsPage() {
@@ -64,6 +68,8 @@ export function ItemsPage() {
   const confirm = useConfirm()
   const { data, error, loading, reload } = useAsync(() => api<Item[]>('/items'), [])
   const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -72,6 +78,24 @@ export function ItemsPage() {
 
   const q = search.trim().toLowerCase()
   const rows = data.filter((i) => !q || i.name.toLowerCase().includes(q) || (i.category ?? '').toLowerCase().includes(q))
+
+  // Kelompokkan per kategori (urut abjad, "Tanpa kategori" paling bawah).
+  const counts = new Map<string, number>()
+  for (const i of data) counts.set(categoryOf(i), (counts.get(categoryOf(i)) ?? 0) + 1)
+  const names = [...counts.keys()].sort((a, b) =>
+    a === NO_CATEGORY ? 1 : b === NO_CATEGORY ? -1 : a.localeCompare(b),
+  )
+  const visible = rows.filter((i) => !category || categoryOf(i) === category)
+  const groups = names
+    .map((name) => ({ name, items: visible.filter((i) => categoryOf(i) === name) }))
+    .filter((g) => g.items.length > 0)
+  const searching = q.length > 0
+  const toggle = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(name)) next.add(name)
+      return next
+    })
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -131,14 +155,35 @@ export function ItemsPage() {
         ) : null}
       </PageHeader>
 
-      {rows.length === 0 ? (
+      {names.length > 1 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {['', ...names].map((c) => (
+            <button
+              key={c || 'all'}
+              type="button"
+              aria-pressed={category === c}
+              onClick={() => setCategory(c)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                category === c
+                  ? 'border-primary/50 bg-primary/15 text-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {c || 'Semua'}{' '}
+              <span className="tabular-nums opacity-70">{c ? counts.get(c) : data.length}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {groups.length === 0 ? (
         <EmptyState />
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nama</TableHead>
-              <TableHead>Kategori</TableHead>
               <TableHead>Satuan</TableHead>
               <TableHead className="text-right">Harga</TableHead>
               <TableHead>Tersedia di</TableHead>
@@ -147,7 +192,26 @@ export function ItemsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((i) => (
+            {groups.map((g) => {
+              const open = searching || !collapsed.has(g.name)
+              return [
+                <TableRow key={`h-${g.name}`} className="bg-muted/40 hover:bg-muted/60">
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="py-0">
+                    <button
+                      type="button"
+                      onClick={() => toggle(g.name)}
+                      aria-expanded={open}
+                      className="flex w-full items-center gap-2 py-2.5 text-left text-xs font-bold tracking-wide uppercase"
+                    >
+                      <ChevronDown className={cn('size-4 text-muted-foreground transition-transform', !open && '-rotate-90')} aria-hidden />
+                      {g.name}
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        {g.items.length}
+                      </span>
+                    </button>
+                  </TableCell>
+                </TableRow>,
+                ...(open ? g.items : []).map((i) => (
               <TableRow key={i.id}>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
@@ -161,7 +225,6 @@ export function ItemsPage() {
                     <span className="font-medium">{i.name}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{i.category ?? '—'}</TableCell>
                 <TableCell>{i.unit}</TableCell>
                 <TableCell className="text-right tabular-nums">{i.price > 0 ? formatMoney(i.price) : '—'}</TableCell>
                 <TableCell>
@@ -216,7 +279,9 @@ export function ItemsPage() {
                   </TableCell>
                 ) : null}
               </TableRow>
-            ))}
+                )),
+              ]
+            })}
           </TableBody>
         </Table>
       )}
@@ -234,7 +299,14 @@ export function ItemsPage() {
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Kategori">
-                  <Input value={draft.category} onChange={set('category')} maxLength={60} />
+                  <Input value={draft.category} onChange={set('category')} maxLength={60} list="item-categories" placeholder="Pilih / ketik baru" />
+                  <datalist id="item-categories">
+                    {names
+                      .filter((n) => n !== NO_CATEGORY)
+                      .map((n) => (
+                        <option key={n} value={n} />
+                      ))}
+                  </datalist>
                 </Field>
                 <Field label="Satuan">
                   <Input value={draft.unit} onChange={set('unit')} maxLength={20} required />

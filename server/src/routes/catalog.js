@@ -112,11 +112,16 @@ catalogRouter.delete(
   wrap(async (req, res) => {
     const [item] = await query('SELECT name FROM items WHERE id = ? AND deleted_at IS NULL', [req.params.id])
     if (!item) throw new HttpError(404, 'Barang tidak ditemukan')
-    const [{ total }] = await query(
-      'SELECT COALESCE(SUM(qty), 0) AS total FROM stock_levels WHERE item_id = ?',
+    const held = await query(
+      `SELECT l.name, s.qty FROM stock_levels s JOIN locations l ON l.id = s.location_id
+        WHERE s.item_id = ? AND s.qty > 0 ORDER BY s.qty DESC`,
       [req.params.id],
     )
-    if (Number(total) > 0) throw new HttpError(409, 'Barang masih punya stok, kosongkan dulu')
+    if (held.length)
+      throw new HttpError(
+        409,
+        `Barang masih punya stok (${held.map((h) => `${h.name}: ${Number(h.qty)}`).join(', ')}). Keluarkan dulu lewat menu Masuk / Keluar.`,
+      )
     const [{ pending }] = await query(
       `SELECT COUNT(*) AS pending FROM order_items oi JOIN orders o ON o.id = oi.order_id
         WHERE oi.item_id = ? AND o.status = 'pending'`,
@@ -214,11 +219,16 @@ catalogRouter.delete(
   wrap(async (req, res) => {
     const [loc] = await query('SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL', [req.params.id])
     if (!loc) throw new HttpError(404, 'Lokasi tidak ditemukan')
-    const [{ total }] = await query(
-      'SELECT COALESCE(SUM(qty), 0) AS total FROM stock_levels WHERE location_id = ?',
+    const held = await query(
+      `SELECT i.name, s.qty FROM stock_levels s JOIN items i ON i.id = s.item_id
+        WHERE s.location_id = ? AND s.qty > 0 ORDER BY s.qty DESC LIMIT 5`,
       [req.params.id],
     )
-    if (Number(total) > 0) throw new HttpError(409, 'Lokasi masih berisi stok, pindahkan dulu')
+    if (held.length)
+      throw new HttpError(
+        409,
+        `Lokasi masih berisi stok (${held.map((h) => `${h.name}: ${Number(h.qty)}`).join(', ')}). Pindahkan atau keluarkan dulu.`,
+      )
     await query('UPDATE locations SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [req.params.id])
     await audit(req.user, { entity: 'location', id: Number(req.params.id), label: loc.name, action: 'delete' })
     res.json({ ok: true })
