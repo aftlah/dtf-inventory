@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
-import { AlertCircle, Inbox, type LucideIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AlertCircle, Check, ChevronDown, Inbox, Package, Search, type LucideIcon } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -60,12 +61,27 @@ export function Field({
   )
 }
 
-export type Option = { value: string; label: string }
+/** `image`: undefined = tanpa gambar, null = pakai ikon pengganti, string = URL thumbnail. */
+export type Option = { value: string; label: string; image?: string | null }
 
-// Radix Select tidak mengizinkan value kosong, jadi "semua"/kosong dipetakan ke sentinel.
-const NONE = '__none__'
+function OptionLabel({ option }: { option: Option }) {
+  if (option.image === undefined) return <>{option.label}</>
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded bg-black/30">
+        {option.image ? (
+          <img src={option.image} alt="" loading="lazy" className="size-full object-contain" />
+        ) : (
+          <Package className="size-3.5 text-muted-foreground/60" aria-hidden />
+        )}
+      </span>
+      <span className="truncate">{option.label}</span>
+    </span>
+  )
+}
 
-export function OptionSelect({
+// Dropdown dengan kotak pencarian (filter saat mengetik, navigasi panah + Enter).
+function SearchSelect({
   value,
   onChange,
   options,
@@ -79,12 +95,166 @@ export function OptionSelect({
   onChange: (value: string) => void
   options: Option[]
   placeholder?: string
-  /** Bila diisi, ditambahkan pilihan pertama dengan value kosong (mis. "Semua lokasi"). */
   emptyLabel?: string
   className?: string
   disabled?: boolean
   id?: string
 }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const all = useMemo<Option[]>(
+    () => (emptyLabel ? [{ value: '', label: emptyLabel }, ...options] : options),
+    [emptyLabel, options],
+  )
+  const q = query.trim().toLowerCase()
+  const filtered = useMemo(() => (q ? all.filter((o) => o.label.toLowerCase().includes(q)) : all), [all, q])
+  const selected = all.find((o) => o.value === value)
+
+  useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
+
+  function choose(o: Option) {
+    onChange(o.value)
+    setOpen(false)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((i) => Math.min(i + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (filtered[active]) choose(filtered[active])
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setQuery('')
+          setActive(Math.max(0, all.findIndex((o) => o.value === value)))
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          id={id}
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className={cn(
+            'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30',
+            !selected && 'text-muted-foreground',
+            className,
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate">
+            {selected ? <OptionLabel option={selected} /> : placeholder}
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-56" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <div className="relative border-b border-border p-2">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setActive(0)
+            }}
+            onKeyDown={onKeyDown}
+            placeholder="Cari…"
+            aria-label="Cari"
+            className="h-8 w-full rounded-md bg-muted/50 pr-2 pl-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <div ref={listRef} role="listbox" className="max-h-64 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">Tidak ditemukan</p>
+          ) : (
+            filtered.map((o, i) => (
+              <button
+                key={o.value || '__empty__'}
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
+                data-index={i}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => choose(o)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm',
+                  i === active && 'bg-accent text-accent-foreground',
+                )}
+              >
+                <span className="min-w-0 flex-1">
+                  <OptionLabel option={o} />
+                </span>
+                {o.value === value ? <Check className="size-4 shrink-0 text-primary" aria-hidden /> : null}
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// Radix Select tidak mengizinkan value kosong, jadi "semua"/kosong dipetakan ke sentinel.
+const NONE = '__none__'
+
+// Daftar dengan lebih dari ini otomatis memakai kotak pencarian.
+const SEARCH_THRESHOLD = 6
+
+export function OptionSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  emptyLabel,
+  className,
+  disabled,
+  id,
+  searchable,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: Option[]
+  placeholder?: string
+  /** Bila diisi, ditambahkan pilihan pertama dengan value kosong (mis. "Semua lokasi"). */
+  emptyLabel?: string
+  className?: string
+  disabled?: boolean
+  id?: string
+  /** Paksa kotak pencarian aktif/mati. Bawaan: aktif bila pilihan lebih dari 6. */
+  searchable?: boolean
+}) {
+  if (searchable ?? options.length > SEARCH_THRESHOLD) {
+    return (
+      <SearchSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+        emptyLabel={emptyLabel}
+        className={className}
+        disabled={disabled}
+        id={id}
+      />
+    )
+  }
   return (
     <Select
       value={value === '' ? (emptyLabel ? NONE : '') : value}
@@ -98,7 +268,20 @@ export function OptionSelect({
         {emptyLabel ? <SelectItem value={NONE}>{emptyLabel}</SelectItem> : null}
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value}>
-            {o.label}
+            {o.image === undefined ? (
+              o.label
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded bg-black/30">
+                  {o.image ? (
+                    <img src={o.image} alt="" loading="lazy" className="size-full object-contain" />
+                  ) : (
+                    <Package className="size-3.5 text-muted-foreground/60" aria-hidden />
+                  )}
+                </span>
+                {o.label}
+              </span>
+            )}
           </SelectItem>
         ))}
       </SelectContent>
