@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { requireAdmin, requireAuth, requireStaff } from './auth.js'
 import { authRouter } from './routes/auth.js'
+import { cashRouter } from './routes/cash.js'
 import { catalogRouter } from './routes/catalog.js'
 import { inventoryRouter } from './routes/inventory.js'
 import { marketRouter, ordersRouter } from './routes/orders.js'
@@ -21,6 +22,7 @@ app.use('/api/market', requireAuth, marketRouter)
 app.use('/api/orders', requireAuth, ordersRouter)
 app.use('/api/requests', requireAuth, requestsRouter)
 // Sisanya hanya admin/staff.
+app.use('/api/cash', requireAuth, requireStaff, cashRouter)
 app.use('/api', requireAuth, requireStaff, catalogRouter, inventoryRouter)
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan' }))
 

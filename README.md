@@ -86,3 +86,12 @@ Seperti `inventory-bbc`. Menu sidebar: **Penjualan** (Ajukan Penjualan, Status P
 - Stok bahan langsung dipesankan saat pengajuan dibuat. Ditolak/dibatalkan melepas pesanan stok. Staff bisa meminta lapor ulang.
 - Staff tidak boleh menyetujui/mengonfirmasi pengajuannya sendiri (kecuali admin). Bahan diambil otomatis dari lokasi dengan stok terbanyak.
 - Jalankan `npm run db:init` sekali untuk menambah tabel/kolom baru pada database lama, lalu `npm run db:seed-market` untuk mengisi katalog (barang yang sudah ada tidak diubah).
+
+## Buku Kas (keuangan)
+
+Menu **Keuangan → Buku Kas** (admin/staff), seperti `inventory-bbc`:
+- Catat **pemasukan** dan **pengeluaran** dengan kategori, sumber/tujuan ("uang keluar ke mana"), tanggal, dan catatan.
+- Pemasukan punya **status uang**: kotor → sedang dicuci → bersih (bisa diubah langsung di tabel). Posisi ketiganya selalu dihitung dari semua pemasukan.
+- Ringkasan per periode (hari ini / 7 hari / bulan ini / semua / kustom): pemasukan, pengeluaran, saldo, pengeluaran dan pemasukan per kategori.
+- Hanya admin yang bisa menghapus catatan (soft delete). Pencatatan manual, terpisah dari pesanan Market.
+- Jalankan `npm run db:init` sekali untuk membuat tabel `cash_entries`.

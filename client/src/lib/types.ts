@@ -126,3 +126,27 @@ export type RequestOptions = {
   }[]
   resultItems: { id: number; name: string; category: string | null; unit: string; image_url: string | null }[]
 }
+
+export type CashType = 'income' | 'expense'
+export type WashStatus = 'dirty' | 'washing' | 'clean'
+
+export type CashEntry = {
+  id: number
+  entry_date: string
+  type: CashType
+  category: string
+  amount: number
+  counterparty: string | null
+  note: string | null
+  wash_status: WashStatus | null
+  created_by_name: string
+}
+
+export type CashSummary = {
+  income: number
+  expense: number
+  balance: number
+  pools: Record<WashStatus, number>
+  expense_by_category: { category: string; amount: number; count: number }[]
+  income_by_category: { category: string; amount: number; count: number }[]
+}

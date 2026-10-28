@@ -166,3 +166,26 @@ CREATE TABLE IF NOT EXISTS request_items (
   KEY ri_request_idx (request_id),
   KEY ri_item_idx (item_id)
 ) ENGINE=InnoDB;
+
+-- Buku kas (hanya admin/staff): pemasukan & pengeluaran umum, tujuan uang, dan status uang kotor/dicuci/bersih.
+-- Pemasukan punya status uang: dirty (kotor) -> washing (sedang dicuci) -> clean (bersih).
+CREATE TABLE IF NOT EXISTS cash_entries (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  entry_date      DATE NOT NULL,
+  type            ENUM('income','expense') NOT NULL,
+  category        VARCHAR(60) NOT NULL,
+  amount          BIGINT UNSIGNED NOT NULL,
+  counterparty    VARCHAR(120) NULL,              -- sumber pemasukan / tujuan pengeluaran
+  note            VARCHAR(500) NULL,
+  wash_status     ENUM('dirty','washing','clean') NULL,  -- hanya untuk pemasukan
+  washed_at       TIMESTAMP NULL,
+  created_by      BIGINT UNSIGNED NULL,
+  created_by_name VARCHAR(100) NOT NULL,          -- snapshot
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at      TIMESTAMP NULL,
+  CONSTRAINT cash_amount_chk CHECK (amount > 0),
+  CONSTRAINT cash_wash_chk CHECK ((type = 'income' AND wash_status IS NOT NULL) OR (type = 'expense' AND wash_status IS NULL)),
+  CONSTRAINT cash_user_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
+  KEY cash_date_idx (entry_date, id),
+  KEY cash_type_idx (type, entry_date)
+) ENGINE=InnoDB;

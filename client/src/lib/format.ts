@@ -48,3 +48,9 @@ export const requestKindLabel: Record<RequestKind, string> = {
   process: 'Pemrosesan',
   buyback: 'Jual Barang',
 }
+
+// 'YYYY-MM-DD' (tanggal murni, tanpa zona waktu) -> "28 Okt 2026".
+export function formatDate(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(y, m - 1, d))
+}

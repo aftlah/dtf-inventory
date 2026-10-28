@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { LoadingState } from '@/components/common'
 import { useAuth } from '@/contexts/AuthContext'
+import { CashPage } from '@/pages/CashPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ItemsPage } from '@/pages/ItemsPage'
 import { LocationsPage } from '@/pages/LocationsPage'
@@ -41,6 +42,7 @@ export function App() {
             <Route path="log" element={<LogPage />} />
             <Route path="items" element={<ItemsPage />} />
             <Route path="locations" element={<LocationsPage />} />
+            <Route path="cash" element={<CashPage />} />
           </>
         ) : null}
         {isAdmin ? <Route path="users" element={<UsersPage />} /> : null}

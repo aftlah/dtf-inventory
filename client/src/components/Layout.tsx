@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeftRight,
+  BookOpen,
   Boxes,
   ChevronDown,
   ChevronsUpDown,
@@ -79,6 +80,11 @@ const groups: NavGroup[] = [
       { to: '/items', label: 'Katalog Barang', icon: Package },
       { to: '/locations', label: 'Lokasi', icon: MapPin },
     ],
+  },
+  {
+    title: 'Keuangan',
+    access: 'staff',
+    items: [{ to: '/cash', label: 'Buku Kas', icon: BookOpen }],
   },
   { title: 'Admin', access: 'admin', items: [{ to: '/users', label: 'Pengguna', icon: Users }] },
 ]
