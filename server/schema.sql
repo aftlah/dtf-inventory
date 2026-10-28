@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS items (
   in_sale    TINYINT(1) NOT NULL DEFAULT 0,       -- boleh diajukan di Penjualan
   in_process TINYINT(1) NOT NULL DEFAULT 0,       -- boleh diajukan sebagai bahan Pemrosesan
   min_sale_qty INT UNSIGNED NOT NULL DEFAULT 1,   -- minimal jumlah per pengajuan Penjualan
+  in_buyback TINYINT(1) NOT NULL DEFAULT 0,       -- boleh dijual member ke toko (Jual Barang)
+  buyback_price BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga beli toko per unit
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMP NULL,
   live_key   TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) STORED, -- NULL untuk yang dihapus: nama boleh dipakai ulang
@@ -124,11 +126,13 @@ CREATE TABLE IF NOT EXISTS order_allocations (
   KEY oa_order_idx (order_id)
 ) ENGINE=InnoDB;
 
--- Pengajuan Penjualan (sale) dan Pemrosesan (process).
--- Alur: pending -> approved (bahan keluar dari stok) -> reported (member lapor + bukti) -> completed (staff konfirmasi).
+-- Pengajuan Penjualan (sale), Pemrosesan (process), dan Jual Barang (buyback).
+-- sale/process: pending -> approved (bahan keluar dari stok) -> reported (member lapor + bukti) -> completed (staff konfirmasi).
+-- buyback: pending -> completed (disetujui: barang member masuk ke stok toko dengan harga beli tetap).
 CREATE TABLE IF NOT EXISTS requests (
   id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  kind              ENUM('sale','process') NOT NULL,
+  kind              ENUM('sale','process','buyback') NOT NULL,
+  total             BIGINT UNSIGNED NOT NULL DEFAULT 0,  -- buyback: nilai yang dibayar toko
   user_id           BIGINT UNSIGNED NOT NULL,
   user_name         VARCHAR(100) NOT NULL,
   status            ENUM('pending','approved','reported','completed','rejected','cancelled') NOT NULL DEFAULT 'pending',
@@ -155,6 +159,7 @@ CREATE TABLE IF NOT EXISTS request_items (
   item_name  VARCHAR(150) NOT NULL,               -- snapshot
   image_url  VARCHAR(255) NULL,                   -- snapshot
   qty        INT UNSIGNED NOT NULL,
+  price      BIGINT UNSIGNED NOT NULL DEFAULT 0,  -- buyback: harga beli per unit saat diajukan
   CONSTRAINT ri_qty_chk CHECK (qty > 0),
   CONSTRAINT ri_request_fk FOREIGN KEY (request_id) REFERENCES requests (id) ON DELETE CASCADE,
   CONSTRAINT ri_item_fk FOREIGN KEY (item_id) REFERENCES items (id),

@@ -16,6 +16,8 @@ export type Item = {
   in_sale: boolean
   in_process: boolean
   min_sale_qty: number
+  in_buyback: boolean
+  buyback_price: number
 }
 
 export type Location = {
@@ -82,7 +84,7 @@ export type Order = {
   allocations: { item_id: number; qty: number; location_name: string }[]
 }
 
-export type RequestKind = 'sale' | 'process'
+export type RequestKind = 'sale' | 'process' | 'buyback'
 export type RequestStatus = 'pending' | 'approved' | 'reported' | 'completed' | 'rejected' | 'cancelled'
 
 export type RequestRow = {
@@ -92,6 +94,7 @@ export type RequestRow = {
   user_name: string
   status: RequestStatus
   result_money: number | null
+  total: number
   proof_url: string | null
   review_note: string | null
   reviewed_by_name: string | null
@@ -100,7 +103,14 @@ export type RequestRow = {
   completed_at: string | null
   confirmed_by_name: string | null
   created_at: string
-  items: { role: 'input' | 'result'; item_id: number; item_name: string; image_url: string | null; qty: number }[]
+  items: {
+    role: 'input' | 'result'
+    item_id: number
+    item_name: string
+    image_url: string | null
+    qty: number
+    price: number
+  }[]
 }
 
 export type RequestOptions = {
@@ -111,6 +121,7 @@ export type RequestOptions = {
     unit: string
     image_url: string | null
     min_qty: number
+    price: number
     available: number
   }[]
   resultItems: { id: number; name: string; category: string | null; unit: string; image_url: string | null }[]

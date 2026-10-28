@@ -17,5 +17,5 @@ export const RESERVED = `(
     WHERE oi.item_id = i.id)
   + (SELECT COALESCE(SUM(ri.qty), 0) FROM request_items ri
        JOIN requests r ON r.id = ri.request_id AND r.status = 'pending'
-      WHERE ri.item_id = i.id AND ri.role = 'input')
+      WHERE ri.item_id = i.id AND ri.role = 'input' AND r.kind <> 'buyback')
 )`

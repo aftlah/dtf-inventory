@@ -76,12 +76,13 @@ npm run db:seed-market -- --stock     # sekaligus stok awal seperti BBC
 5. **Run NPM Install**, lalu jalankan skrip `host:db-init` (buat tabel + admin), dan opsional `host:seed-market`. Terakhir **Restart**.
 6. Setelah update kode: build ulang, upload ulang `client/dist` / `server/src`, lalu Restart.
 
-## Penjualan & Pemrosesan
+## Penjualan, Pemrosesan, dan Jual Barang
 
-Seperti `inventory-bbc`. Aktifkan per barang di **Katalog Barang → Tersedia untuk** (*Penjualan* dengan minimal jumlah, *Pemrosesan*).
+Seperti `inventory-bbc`. Menu sidebar: **Penjualan** (Ajukan Penjualan, Status Penjualan, Jual Barang, Status Jual Barang) dan **Pemrosesan** (Ajukan, Status). Halaman *Ajukan* berbentuk toko bergambar dengan keranjang. Aktifkan per barang di **Katalog Barang → Tersedia untuk**.
 
-- **Penjualan:** member mengajukan barang → staff menyetujui (barang keluar dari stok) → member lapor *uang hasil + link bukti* → staff konfirmasi.
-- **Pemrosesan:** member mengajukan bahan → staff menyetujui (bahan keluar dari stok) → member lapor *item hasil + link bukti* → staff konfirmasi; item hasil masuk ke lokasi bertanda *Dijual di Market*.
-- Stok langsung dipesankan saat pengajuan dibuat (tidak bisa dipakai pesanan Market/pengajuan lain). Ditolak/dibatalkan melepas pesanan stok. Staff bisa meminta lapor ulang bila laporan tidak valid.
+- **Penjualan:** member mengajukan barang (ada minimal jumlah) → staff menyetujui (barang keluar dari stok) → member lapor *uang hasil + link bukti* → staff konfirmasi.
+- **Pemrosesan:** member mengajukan bahan → staff menyetujui (bahan keluar dari stok) → member lapor *item hasil + link bukti* → staff konfirmasi; hasil masuk ke lokasi bertanda *Dijual di Market*.
+- **Jual Barang:** member menjual barang ke toko dengan harga beli tetap → staff menyetujui → barang masuk ke lokasi *Dijual di Market* (tanpa laporan).
+- Stok bahan langsung dipesankan saat pengajuan dibuat. Ditolak/dibatalkan melepas pesanan stok. Staff bisa meminta lapor ulang.
 - Staff tidak boleh menyetujui/mengonfirmasi pengajuannya sendiri (kecuali admin). Bahan diambil otomatis dari lokasi dengan stok terbanyak.
-- Jalankan `npm run db:init` sekali untuk menambah tabel dan kolom baru pada database lama.
+- Jalankan `npm run db:init` sekali untuk menambah tabel/kolom baru pada database lama, lalu `npm run db:seed-market` untuk mengisi katalog (barang yang sudah ada tidak diubah).

@@ -6,9 +6,9 @@ import { RESERVED, TOTAL_STOCK } from '../stock.js'
 
 export const requestsRouter = Router()
 
-const KINDS = ['sale', 'process']
-const FLAG = { sale: 'in_sale', process: 'in_process' }
-const LABEL = { sale: 'Penjualan', process: 'Pemrosesan' }
+const KINDS = ['sale', 'process', 'buyback']
+const FLAG = { sale: 'in_sale', process: 'in_process', buyback: 'in_buyback' }
+const LABEL = { sale: 'Penjualan', process: 'Pemrosesan', buyback: 'Jual Barang' }
 const MAX_LINES = 50
 const STATUSES = ['pending', 'approved', 'reported', 'completed', 'rejected', 'cancelled']
 
@@ -60,9 +60,10 @@ requestsRouter.get(
     const items = await query(
       `SELECT i.id, i.name, i.category, i.unit, i.image_url,
               ${kind === 'sale' ? 'i.min_sale_qty' : '1'} AS min_qty,
+              ${kind === 'buyback' ? 'i.buyback_price' : '0'} AS price,
               GREATEST(${TOTAL_STOCK} - ${RESERVED}, 0) AS available
          FROM items i
-        WHERE i.deleted_at IS NULL AND i.${FLAG[kind]} = 1
+        WHERE i.deleted_at IS NULL AND i.${FLAG[kind]} = 1 ${kind === 'buyback' ? 'AND i.buyback_price > 0' : ''}
         ORDER BY i.category, i.name`,
     )
     // Item hasil pemrosesan boleh barang apa saja di katalog.
@@ -73,7 +74,12 @@ requestsRouter.get(
           )
         : []
     res.json({
-      items: items.map((r) => ({ ...r, min_qty: Number(r.min_qty), available: Number(r.available) })),
+      items: items.map((r) => ({
+        ...r,
+        min_qty: Number(r.min_qty),
+        price: Number(r.price),
+        available: Number(r.available),
+      })),
       resultItems,
     })
   }),
@@ -90,7 +96,7 @@ requestsRouter.post(
 
     const id = await withTx(async (conn) => {
       const [items] = await conn.query(
-        `SELECT id, name, image_url, in_sale, in_process, min_sale_qty FROM items
+        `SELECT id, name, image_url, in_sale, in_process, in_buyback, buyback_price, min_sale_qty FROM items
           WHERE id IN (?) AND deleted_at IS NULL ORDER BY id FOR UPDATE`,
         [lines.map((l) => l.item_id)],
       )
@@ -101,6 +107,11 @@ requestsRouter.post(
         if (!item[FLAG[kind]]) throw new HttpError(409, `"${item.name}" tidak bisa diajukan untuk ${LABEL[kind]}`)
         const min = kind === 'sale' ? Number(item.min_sale_qty) : 1
         if (l.qty < min) throw new HttpError(400, `Minimal ${min} untuk "${item.name}"`)
+        if (kind === 'buyback') {
+          // Barang berasal dari member, jadi tidak ada batas stok; harga beli dari katalog.
+          if (Number(item.buyback_price) <= 0) throw new HttpError(409, `Harga beli "${item.name}" belum diatur`)
+          continue
+        }
         const [[{ available }]] = await conn.query(
           `SELECT ${TOTAL_STOCK} - ${RESERVED} AS available FROM items i WHERE i.id = ?`,
           [l.item_id],
@@ -112,17 +123,21 @@ requestsRouter.post(
           )
       }
 
-      const [r] = await conn.query('INSERT INTO requests (kind, user_id, user_name) VALUES (?, ?, ?)', [
+      const priceOf = (itemId) => (kind === 'buyback' ? Number(byId.get(itemId).buyback_price) : 0)
+      const total = lines.reduce((sum, l) => sum + priceOf(l.item_id) * l.qty, 0)
+
+      const [r] = await conn.query('INSERT INTO requests (kind, user_id, user_name, total) VALUES (?, ?, ?, ?)', [
         kind,
         req.user.id,
         req.user.name,
+        total,
       ])
       await conn.query(
-        `INSERT INTO request_items (request_id, role, item_id, item_name, image_url, qty) VALUES ?`,
+        `INSERT INTO request_items (request_id, role, item_id, item_name, image_url, qty, price) VALUES ?`,
         [
           lines.map((l) => {
             const item = byId.get(l.item_id)
-            return [r.insertId, 'input', l.item_id, item.name, item.image_url, l.qty]
+            return [r.insertId, 'input', l.item_id, item.name, item.image_url, l.qty, priceOf(l.item_id)]
           }),
         ],
       )
@@ -162,7 +177,7 @@ requestsRouter.get(
     if (rows.length === 0) return res.json([])
 
     const lines = await query(
-      `SELECT request_id, role, item_id, item_name, image_url, qty
+      `SELECT request_id, role, item_id, item_name, image_url, qty, price
          FROM request_items WHERE request_id IN (?) ORDER BY id`,
       [rows.map((r) => r.id)],
     )
@@ -172,7 +187,8 @@ requestsRouter.get(
       rows.map((r) => ({
         ...r,
         result_money: r.result_money === null ? null : Number(r.result_money),
-        items: byRequest.get(r.id) ?? [],
+        total: Number(r.total),
+        items: (byRequest.get(r.id) ?? []).map((l) => ({ ...l, price: Number(l.price) })),
       })),
     )
   }),
@@ -211,6 +227,30 @@ requestsRouter.post(
         [request.id],
       )
       await lockItems(conn, lines.map((l) => l.item_id))
+
+      if (request.kind === 'buyback') {
+        // Barang dari member masuk ke lokasi "Dijual di Market" (toko); pengajuan langsung selesai.
+        const [[store]] = await conn.query(
+          `SELECT id FROM locations WHERE sell_in_market = 1 AND deleted_at IS NULL ORDER BY id LIMIT 1`,
+        )
+        if (!store) throw new HttpError(409, 'Tandai satu lokasi sebagai "Dijual di Market" dulu (lokasi toko)')
+        for (const line of lines) {
+          await writeLog(conn, req.user, request, {
+            item_id: line.item_id,
+            location_id: store.id,
+            type: 'in',
+            qty: line.qty,
+            note: `Jual barang #${request.id} · ${request.user_name}`,
+            refType: 'request',
+          })
+        }
+        await conn.query(
+          `UPDATE requests SET status = 'completed', review_note = ?, reviewed_by_name = ?, reviewed_at = NOW(),
+                  completed_at = NOW(), confirmed_by_name = ? WHERE id = ?`,
+          [note, req.user.name, req.user.name, request.id],
+        )
+        return
+      }
 
       for (const line of lines) {
         const [locs] = await conn.query(

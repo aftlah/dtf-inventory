@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeftRight,
   Boxes,
+  ChevronDown,
   ChevronsUpDown,
+  ClipboardList,
   FlaskConical,
   HandCoins,
   LayoutDashboard,
@@ -10,6 +12,7 @@ import {
   MapPin,
   Menu,
   Package,
+  PackageOpen,
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -19,7 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { brand } from '@/brand'
 import { Button } from '@/components/ui/button'
 import {
@@ -44,17 +47,26 @@ const groups: NavGroup[] = [
     items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }],
   },
   {
-    title: 'Market',
+    title: 'Pembelian',
     items: [
       { to: '/market', label: 'Market', icon: Store },
       { to: '/orders', label: 'Pesanan', icon: Receipt },
     ],
   },
   {
-    title: 'Jual & Proses',
+    title: 'Penjualan',
     items: [
-      { to: '/sales', label: 'Penjualan', icon: HandCoins },
-      { to: '/process', label: 'Pemrosesan', icon: FlaskConical },
+      { to: '/sales/new', label: 'Ajukan Penjualan', icon: PackageOpen },
+      { to: '/sales', label: 'Status Penjualan', icon: ClipboardList },
+      { to: '/buyback/new', label: 'Jual Barang', icon: HandCoins },
+      { to: '/buyback', label: 'Status Jual Barang', icon: ClipboardList },
+    ],
+  },
+  {
+    title: 'Pemrosesan',
+    items: [
+      { to: '/process/new', label: 'Ajukan Pemrosesan', icon: FlaskConical },
+      { to: '/process', label: 'Status Pemrosesan', icon: ClipboardList },
     ],
   },
   {
@@ -119,8 +131,33 @@ function UserMenu() {
   )
 }
 
+const COLLAPSED_KEY = 'dtf-inv-nav-collapsed'
+
+function readCollapsed(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '{}') as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { isAdmin, isStaff, user } = useAuth()
+  const { pathname } = useLocation()
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed)
+
+  function toggle(title: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [title]: !prev[title] }
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next))
+      } catch {
+        // abaikan
+      }
+      return next
+    })
+  }
+
   const visible = useMemo(() => {
     const allowed = (a?: Access) => !a || (a === 'admin' ? isAdmin : isStaff)
     return groups
@@ -147,22 +184,49 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {brand.subtitle}
         </p>
       </div>
-      <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
-        {visible.map((g) => (
-          <div key={g.title}>
-            <p className="px-2 pb-1 text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">
-              {g.title}
-            </p>
-            <div className="flex flex-col gap-0.5">
-              {g.items.map(({ to, label, icon: Icon }) => (
-                <NavLink key={to} to={to} end className={navClass} onClick={onNavigate}>
-                  <Icon className="size-4 opacity-80" aria-hidden />
-                  {label}
-                </NavLink>
-              ))}
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+        {visible.map((g) => {
+          // Grup yang berisi halaman aktif selalu terbuka.
+          const hasActive = g.items.some((i) => pathname === i.to)
+          const open = hasActive || !collapsed[g.title]
+          const panelId = `nav-${g.title}`
+          return (
+            <div key={g.title}>
+              <button
+                type="button"
+                onClick={() => toggle(g.title)}
+                aria-expanded={open}
+                aria-controls={panelId}
+                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase transition-colors hover:text-foreground"
+              >
+                {g.title}
+                <ChevronDown className={`size-3.5 transition-transform duration-200 ${open ? '' : '-rotate-90'}`} aria-hidden />
+              </button>
+              <div
+                id={panelId}
+                className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+              >
+                <div className="overflow-hidden">
+                  <div className="flex flex-col gap-0.5 pt-1 pb-1">
+                    {g.items.map(({ to, label, icon: Icon }) => (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        end
+                        className={navClass}
+                        onClick={onNavigate}
+                        tabIndex={open ? 0 : -1}
+                      >
+                        <Icon className="size-4 opacity-80" aria-hidden />
+                        {label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </nav>
       <div className="border-t border-border p-3">
         <UserMenu />

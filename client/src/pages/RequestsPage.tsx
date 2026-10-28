@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Check, ExternalLink, Loader2, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import {
   EmptyState,
@@ -40,16 +41,24 @@ const tone: Record<RequestStatus, 'default' | 'good' | 'bad' | 'warn'> = {
   cancelled: 'default',
 }
 
-const COPY: Record<RequestKind, { subtitle: string; newLabel: string; reportHint: string }> = {
+const COPY: Record<RequestKind, { subtitle: string; newLabel: string; newPath: string; reportHint: string }> = {
   sale: {
-    subtitle: 'Ajukan barang untuk dijual. Setelah disetujui, laporkan uang hasilnya beserta link bukti.',
+    subtitle: 'Status pengajuan penjualanmu. Setelah disetujui, laporkan uang hasilnya beserta link bukti.',
     newLabel: 'Ajukan penjualan',
+    newPath: '/sales/new',
     reportHint: 'Masukkan jumlah uang hasil penjualan dan link bukti (mis. screenshot di Imgur).',
   },
   process: {
-    subtitle: 'Ajukan bahan untuk diproses. Setelah disetujui, laporkan item hasilnya beserta link bukti.',
+    subtitle: 'Status pengajuan pemrosesanmu. Setelah disetujui, laporkan item hasilnya beserta link bukti.',
     newLabel: 'Ajukan pemrosesan',
+    newPath: '/process/new',
     reportHint: 'Isi item hasil pemrosesan dan link bukti. Hasil masuk ke stok setelah dikonfirmasi staff.',
+  },
+  buyback: {
+    subtitle: 'Status pengajuan jual barang ke toko. Barang masuk ke stok toko setelah disetujui staff.',
+    newLabel: 'Jual barang',
+    newPath: '/buyback/new',
+    reportHint: '',
   },
 }
 
@@ -124,7 +133,6 @@ const toLines = (lines: Line[]) =>
     .filter((l) => l.item_id && l.qty > 0)
 
 type Dialogs =
-  | { type: 'new' }
   | { type: 'report'; request: RequestRow }
   | { type: 'reason'; request: RequestRow; action: 'reject' | 'reopen' }
   | null
@@ -191,19 +199,24 @@ function RequestCard({
               {formatDateTime(request.created_at)}
             </p>
           </div>
-          {request.result_money !== null ? (
+          {request.kind === 'buyback' ? (
+            <p className="text-lg font-bold text-primary">{formatMoney(request.total)}</p>
+          ) : request.result_money !== null ? (
             <p className="text-lg font-bold text-primary">{formatMoney(request.result_money)}</p>
           ) : null}
         </div>
 
         <div>
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">{request.kind === 'sale' ? 'Barang dijual' : 'Bahan'}</p>
+          <p className="mb-1 text-xs font-semibold text-muted-foreground">{{ sale: 'Barang dijual', buyback: 'Barang dijual ke toko', process: 'Bahan' }[request.kind]}</p>
           <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
             {inputs.map((l) => (
               <li key={`i${l.item_id}`} className="flex items-center gap-3 px-3 py-2 text-sm">
                 {l.image_url ? <img src={l.image_url} alt="" className="size-9 shrink-0 rounded bg-black/30 object-contain" /> : null}
                 <span className="min-w-0 flex-1 truncate font-medium">{l.item_name}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">×{formatNumber(l.qty)}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  ×{formatNumber(l.qty)}
+                  {request.kind === 'buyback' ? ` · ${formatMoney(l.price)}` : ''}
+                </span>
               </li>
             ))}
           </ul>
@@ -309,13 +322,17 @@ export function RequestsPage({ kind }: { kind: RequestKind }) {
         { value: 'open', label: 'Menunggu staff' },
         { value: 'completed', label: 'Selesai' },
       ]
-  const [filter, setFilter] = useState(tabs[0].value)
+  const visibleTabs = kind === 'buyback' ? tabs.filter((t) => t.value !== 'approved') : tabs
+  const [filter, setFilter] = useState(visibleTabs[0].value)
 
   const list = useAsync(
     () => api<RequestRow[]>(`/requests?kind=${kind}${filter === 'all' ? '' : `&status=${filter}`}`),
     [kind, filter],
   )
-  const options = useAsync(() => api<RequestOptions>(`/requests/options?kind=${kind}`), [kind])
+  const options = useAsync(
+    () => (kind === 'process' ? api<RequestOptions>('/requests/options?kind=process') : Promise.resolve(null)),
+    [kind],
+  )
 
   const [dialog, setDialog] = useState<Dialogs>(null)
   const [lines, setLines] = useState<Line[]>([{ ...emptyLine }])
@@ -324,13 +341,14 @@ export function RequestsPage({ kind }: { kind: RequestKind }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const itemById = useMemo(() => new Map((options.data?.items ?? []).map((i) => [i.id, i])), [options.data])
-  const pickOptions = useMemo<PickOption[]>(
-    () => (options.data?.items ?? []).map((i) => ({ value: String(i.id), label: i.name, image: i.image_url })),
-    [options.data],
-  )
   const resultOptions = useMemo<PickOption[]>(
-    () => (options.data?.resultItems ?? []).map((i) => ({ value: String(i.id), label: i.name, image: i.image_url })),
+    () => (options.data?.resultItems ?? [])
+      .filter((i, _idx, all) => {
+        // Utamakan kategori hasil pemrosesan (Narko/Spesial) bila ada.
+        const pref = all.some((x) => /^(narko|spesial)$/i.test(x.category ?? ''))
+        return !pref || /^(narko|spesial)$/i.test(i.category ?? '')
+      })
+      .map((i) => ({ value: String(i.id), label: i.name, image: i.image_url })),
     [options.data],
   )
 
@@ -357,13 +375,6 @@ export function RequestsPage({ kind }: { kind: RequestKind }) {
     }
   }
 
-  function onNew(e: FormEvent) {
-    e.preventDefault()
-    const picked = toLines(lines)
-    if (!picked.length) return toast.error('Pilih minimal satu barang')
-    void submit('/requests', { kind, lines: picked }, 'Pengajuan dikirim, menunggu persetujuan staff')
-  }
-
   function onReport(e: FormEvent) {
     e.preventDefault()
     if (dialog?.type !== 'report') return
@@ -388,21 +399,17 @@ export function RequestsPage({ kind }: { kind: RequestKind }) {
     )
   }
 
-  const hint = (id: number) => {
-    const i = itemById.get(id)
-    if (!i) return null
-    return `Tersedia ${formatNumber(i.available)} ${i.unit}${kind === 'sale' && i.min_qty > 1 ? ` · minimal ${formatNumber(i.min_qty)}` : ''}`
-  }
-
   return (
     <PageStack>
-      <PageHeader title={requestKindLabel[kind]} subtitle={copy.subtitle}>
-        <Button onClick={() => open({ type: 'new' })}>
-          <Plus /> {copy.newLabel}
+      <PageHeader title={`Status ${requestKindLabel[kind]}`} subtitle={copy.subtitle}>
+        <Button asChild>
+          <Link to={copy.newPath}>
+            <Plus /> {copy.newLabel}
+          </Link>
         </Button>
       </PageHeader>
 
-      <FilterTabs value={filter} onChange={setFilter} tabs={tabs} label="Status pengajuan" />
+      <FilterTabs value={filter} onChange={setFilter} tabs={visibleTabs} label="Status pengajuan" />
 
       {list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
@@ -426,39 +433,6 @@ export function RequestsPage({ kind }: { kind: RequestKind }) {
           ))}
         </div>
       )}
-
-      {/* Buat pengajuan */}
-      <Dialog open={dialog?.type === 'new'} onOpenChange={(o) => !o && setDialog(null)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{copy.newLabel}</DialogTitle>
-            <DialogDescription>
-              {kind === 'sale'
-                ? 'Pilih barang dan jumlah yang mau dijual. Stok langsung dipesankan untukmu.'
-                : 'Pilih bahan dan jumlah yang mau diproses. Stok langsung dipesankan untukmu.'}
-            </DialogDescription>
-          </DialogHeader>
-          {options.loading && !options.data ? (
-            <LoadingState />
-          ) : pickOptions.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Belum ada barang yang bisa diajukan untuk {requestKindLabel[kind]}. Admin perlu mengaktifkannya di Katalog Barang.
-            </p>
-          ) : (
-            <form id="request-form" onSubmit={onNew} className="flex flex-col gap-4">
-              <LineEditor lines={lines} onChange={setLines} options={pickOptions} hint={hint} />
-            </form>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>
-              Batal
-            </Button>
-            <Button type="submit" form="request-form" disabled={busy || pickOptions.length === 0}>
-              {busy ? <Loader2 className="animate-spin" /> : null} {busy ? 'Mengirim…' : 'Kirim pengajuan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Laporkan hasil */}
       <Dialog open={dialog?.type === 'report'} onOpenChange={(o) => !o && setDialog(null)}>

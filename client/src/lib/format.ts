@@ -43,4 +43,8 @@ export const requestStatusLabel: Record<RequestStatus, string> = {
   cancelled: 'Dibatalkan',
 }
 
-export const requestKindLabel: Record<RequestKind, string> = { sale: 'Penjualan', process: 'Pemrosesan' }
+export const requestKindLabel: Record<RequestKind, string> = {
+  sale: 'Penjualan',
+  process: 'Pemrosesan',
+  buyback: 'Jual Barang',
+}

@@ -36,6 +36,8 @@ type Draft = {
   in_sale: boolean
   in_process: boolean
   min_sale_qty: string
+  in_buyback: boolean
+  buyback_price: string
 }
 const empty: Draft = {
   name: '',
@@ -49,8 +51,10 @@ const empty: Draft = {
   in_sale: false,
   in_process: false,
   min_sale_qty: '1',
+  in_buyback: false,
+  buyback_price: '0',
 }
-type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'image_url' | 'min_sale_qty'
+type TextKey = 'name' | 'category' | 'unit' | 'min_stock' | 'notes' | 'price' | 'image_url' | 'min_sale_qty' | 'buyback_price'
 
 export function ItemsPage() {
   const { isAdmin } = useAuth()
@@ -77,6 +81,7 @@ export function ItemsPage() {
         min_stock: Number(draft.min_stock),
         price: Number(draft.price),
         min_sale_qty: Number(draft.min_sale_qty) || 1,
+        buyback_price: Number(draft.buyback_price) || 0,
       }
       if (draft.id) await api(`/items/${draft.id}`, { method: 'PUT', body })
       else await api('/items', { method: 'POST', body })
@@ -161,7 +166,8 @@ export function ItemsPage() {
                     {i.in_market ? <ToneBadge tone="good">Market</ToneBadge> : null}
                     {i.in_sale ? <ToneBadge tone="warn">Penjualan</ToneBadge> : null}
                     {i.in_process ? <ToneBadge tone="warn">Pemrosesan</ToneBadge> : null}
-                    {!i.in_market && !i.in_sale && !i.in_process ? <span className="text-muted-foreground">—</span> : null}
+                    {i.in_buyback ? <ToneBadge tone="warn">Jual Barang</ToneBadge> : null}
+                    {!i.in_market && !i.in_sale && !i.in_process && !i.in_buyback ? <span className="text-muted-foreground">—</span> : null}
                   </div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{formatNumber(i.min_stock)}</TableCell>
@@ -186,6 +192,8 @@ export function ItemsPage() {
                             in_sale: i.in_sale,
                             in_process: i.in_process,
                             min_sale_qty: String(i.min_sale_qty),
+                            in_buyback: i.in_buyback,
+                            buyback_price: String(i.buyback_price),
                           })
                         }
                       >
@@ -288,6 +296,25 @@ export function ItemsPage() {
                     </span>
                   </Label>
                 </div>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="item-buyback"
+                    checked={draft.in_buyback}
+                    onCheckedChange={(v) => setDraft({ ...draft, in_buyback: v === true })}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="item-buyback" className="flex-col items-start gap-0.5">
+                    Jual Barang
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Member menjual barang ini ke toko dengan harga beli tetap.
+                    </span>
+                  </Label>
+                </div>
+                {draft.in_buyback ? (
+                  <Field label="Harga beli toko per unit ($)">
+                    <Input type="number" min={1} step={1} value={draft.buyback_price} onChange={set('buyback_price')} required />
+                  </Field>
+                ) : null}
               </div>
               <Field label="Catatan">
                 <Textarea value={draft.notes} onChange={set('notes')} maxLength={500} />

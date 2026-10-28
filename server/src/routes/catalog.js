@@ -26,12 +26,14 @@ function itemBody(b) {
     in_market: b?.in_market ? 1 : 0,
     in_sale: b?.in_sale ? 1 : 0,
     in_process: b?.in_process ? 1 : 0,
+    in_buyback: b?.in_buyback ? 1 : 0,
+    buyback_price: posInt(b?.buyback_price ?? 0, 'Harga beli', { min: 0 }),
     min_sale_qty: posInt(b?.min_sale_qty ?? 1, 'Minimal penjualan', { min: 1 }),
   }
 }
 
 const ITEM_COLUMNS =
-  'id, name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty'
+  'id, name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty, in_buyback, buyback_price'
 
 catalogRouter.get(
   '/items',
@@ -46,6 +48,8 @@ catalogRouter.get(
         in_market: !!r.in_market,
         in_sale: !!r.in_sale,
         in_process: !!r.in_process,
+        in_buyback: !!r.in_buyback,
+        buyback_price: Number(r.buyback_price),
       })),
     )
   }),
@@ -58,9 +62,9 @@ catalogRouter.post(
     const d = itemBody(req.body)
     try {
       const r = await query(
-        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty],
+        `INSERT INTO items (name, category, unit, min_stock, notes, price, image_url, in_market, in_sale, in_process, min_sale_qty, in_buyback, buyback_price)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, d.in_buyback, d.buyback_price],
       )
       res.status(201).json({ id: r.insertId })
     } catch (e) {
@@ -78,9 +82,9 @@ catalogRouter.put(
     try {
       r = await query(
         `UPDATE items SET name=?, category=?, unit=?, min_stock=?, notes=?, price=?, image_url=?, in_market=?,
-                in_sale=?, in_process=?, min_sale_qty=?
+                in_sale=?, in_process=?, min_sale_qty=?, in_buyback=?, buyback_price=?
           WHERE id=? AND deleted_at IS NULL`,
-        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, req.params.id],
+        [d.name, d.category, d.unit, d.min_stock, d.notes, d.price, d.image_url, d.in_market, d.in_sale, d.in_process, d.min_sale_qty, d.in_buyback, d.buyback_price, req.params.id],
       )
     } catch (e) {
       throw duplicateAs(e, 'Nama barang sudah ada')
