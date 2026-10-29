@@ -241,7 +241,8 @@ meRouter.get(
 
     const [counts] = await query(
       `SELECT
-         (SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'pending') AS orders_pending,
+         (SELECT COUNT(*) FROM orders WHERE user_id = ? AND (status = 'pending' OR (status = 'approved' AND (paid = 0
+            OR EXISTS (SELECT 1 FROM order_items h WHERE h.order_id = orders.id AND h.handed_at IS NULL))))) AS orders_pending,
          (SELECT COUNT(*) FROM orders WHERE user_id = ? AND status IN ('pending','approved') AND paid = 0) AS unpaid_count,
          (SELECT COALESCE(SUM(total), 0) FROM orders WHERE user_id = ? AND status IN ('pending','approved') AND paid = 0) AS unpaid_total,
          (SELECT COUNT(*) FROM requests WHERE user_id = ? AND status = 'approved') AS need_report,

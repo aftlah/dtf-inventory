@@ -142,7 +142,7 @@ export function MemberDashboardPage() {
       <PageHeader title={`Halo, ${user?.name}`} subtitle="Ringkasan aktivitasmu di Market, penjualan, dan pemrosesan." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Pesanan menunggu" value={formatNumber(counts.orders_pending)} hint="belum disetujui staff" icon={Receipt} />
+        <Kpi label="Pesanan berjalan" value={formatNumber(counts.orders_pending)} hint="belum dibayar / diterima" icon={Receipt} />
         <Kpi
           label="Belum dibayar"
           value={formatMoney(counts.unpaid_total)}
@@ -150,7 +150,7 @@ export function MemberDashboardPage() {
           icon={Wallet}
         />
         <Kpi label="Perlu dilaporkan" value={formatNumber(counts.need_report)} hint="pengajuan disetujui" icon={ClipboardCheck} />
-        <Kpi label="Belanja minggu ini" value={formatMoney(counts.spent_week)} hint="pesanan disetujui" icon={ShoppingBag} />
+        <Kpi label="Belanja minggu ini" value={formatMoney(counts.spent_week)} hint="pesanan Market" icon={ShoppingBag} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

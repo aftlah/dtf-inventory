@@ -91,8 +91,10 @@ ordersRouter.post(
         total += Number(item.price) * l.qty
       }
 
+      // Pesanan Market tidak perlu disetujui: langsung aktif (belum dibayar) dan stok langsung keluar.
       const [order] = await conn.query(
-        'INSERT INTO orders (user_id, user_name, total, note) VALUES (?, ?, ?, ?)',
+        `INSERT INTO orders (user_id, user_name, total, note, status, decided_by_name, decided_at)
+         VALUES (?, ?, ?, ?, 'approved', 'Otomatis', NOW())`,
         [req.user.id, req.user.name, total, note],
       )
       await conn.query(
@@ -104,6 +106,13 @@ ordersRouter.post(
           }),
         ],
       )
+      await allocateStock(
+        conn,
+        { id: null, name: 'Sistem' },
+        { id: order.insertId, user_name: req.user.name },
+        lines.map((l) => ({ ...l, item_name: byId.get(l.item_id).name })),
+      )
+      await notifyLowStock(conn, lines.map((l) => l.item_id))
       await audit(
         req.user,
         { entity: 'order', id: order.insertId, label: `Pesanan #${order.insertId}`, action: 'create', after: { total, jenis_barang: lines.length } },
@@ -153,6 +162,15 @@ ordersRouter.get(
     // Pesanan yang masih harus dibayar: belum lunas dan masih berlaku (bukan ditolak/dibatalkan).
     if (req.query.payment === 'unpaid') where.push(`o.paid = 0 AND o.status IN ('pending', 'approved')`)
     else if (req.query.payment === 'paid') where.push('o.paid = 1')
+    // Penyerahan barang (dicentang petugas brangkas): hanya bermakna untuk pesanan yang disetujui dan sudah dibayar.
+    if (req.query.delivery === 'pending')
+      where.push(
+        `o.status = 'approved' AND o.paid = 1 AND EXISTS (SELECT 1 FROM order_items h WHERE h.order_id = o.id AND h.handed_at IS NULL)`,
+      )
+    else if (req.query.delivery === 'done')
+      where.push(
+        `o.status = 'approved' AND o.paid = 1 AND NOT EXISTS (SELECT 1 FROM order_items h WHERE h.order_id = o.id AND h.handed_at IS NULL)`,
+      )
 
     // Cari: nomor pesanan, nama pembeli, atau nama barang di pesanan.
     const q = String(req.query.q ?? '').trim().slice(0, 100)
@@ -192,7 +210,7 @@ ordersRouter.get(
 
     const ids = orders.map((o) => o.id)
     const lines = await query(
-      `SELECT order_id, item_id, item_name, image_url, qty, unit_price
+      `SELECT order_id, item_id, item_name, image_url, qty, unit_price, handed_at, handed_by_name
          FROM order_items WHERE order_id IN (?) ORDER BY id`,
       [ids],
     )
@@ -242,7 +260,40 @@ const writeLog = (conn, user, order, { item_id, location_id, type, qty, note }) 
     [item_id, location_id, type, qty, note, user.id, user.name, order.id],
   )
 
-// Disetujui: barang keluar dari lokasi "Dijual di Market" (stok terbanyak dulu), dicatat per lokasi.
+// Barang keluar dari lokasi "Dijual di Market" (stok terbanyak dulu), dicatat per lokasi di Riwayat dan
+// order_allocations (dipakai untuk mengembalikan stok bila pesanan dibatalkan). Item harus sudah terkunci.
+async function allocateStock(conn, actor, order, lines) {
+  for (const line of lines) {
+    const [locs] = await conn.query(
+      `SELECT s.location_id, s.qty
+         FROM stock_levels s
+         JOIN locations l ON l.id = s.location_id AND l.deleted_at IS NULL AND l.sell_in_market = 1
+        WHERE s.item_id = ? AND s.qty > 0
+        ORDER BY s.qty DESC, s.location_id`,
+      [line.item_id],
+    )
+    let left = line.qty
+    for (const loc of locs) {
+      if (left === 0) break
+      const take = Math.min(left, Number(loc.qty))
+      await writeLog(conn, actor, order, {
+        item_id: line.item_id,
+        location_id: loc.location_id,
+        type: 'out',
+        qty: take,
+        note: `Pesanan #${order.id} · ${order.user_name}`,
+      })
+      await conn.query(
+        'INSERT INTO order_allocations (order_id, item_id, location_id, qty) VALUES (?, ?, ?, ?)',
+        [order.id, line.item_id, loc.location_id, take],
+      )
+      left -= take
+    }
+    if (left > 0) throw new HttpError(409, `Stok "${line.item_name}" di lokasi Market tidak cukup (kurang ${left})`)
+  }
+}
+
+// Persetujuan manual: hanya untuk pesanan lama yang masih berstatus "menunggu" (sebelum pesanan otomatis aktif).
 ordersRouter.post(
   '/:id/approve',
   requireStaff,
@@ -258,40 +309,17 @@ ordersRouter.post(
         [order.id],
       )
       await lockItems(conn, lines.map((l) => l.item_id))
-
-      for (const line of lines) {
-        const [locs] = await conn.query(
-          `SELECT s.location_id, s.qty
-             FROM stock_levels s
-             JOIN locations l ON l.id = s.location_id AND l.deleted_at IS NULL AND l.sell_in_market = 1
-            WHERE s.item_id = ? AND s.qty > 0
-            ORDER BY s.qty DESC, s.location_id`,
-          [line.item_id],
-        )
-        let left = line.qty
-        for (const loc of locs) {
-          if (left === 0) break
-          const take = Math.min(left, Number(loc.qty))
-          await writeLog(conn, req.user, order, {
-            item_id: line.item_id,
-            location_id: loc.location_id,
-            type: 'out',
-            qty: take,
-            note: `Pesanan #${order.id} · ${order.user_name}`,
-          })
-          await conn.query(
-            'INSERT INTO order_allocations (order_id, item_id, location_id, qty) VALUES (?, ?, ?, ?)',
-            [order.id, line.item_id, loc.location_id, take],
-          )
-          left -= take
-        }
-        if (left > 0)
-          throw new HttpError(409, `Stok "${line.item_name}" di lokasi Market tidak cukup (kurang ${left})`)
-      }
+      await allocateStock(conn, req.user, order, lines)
 
       await audit(
         req.user,
-        { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: 'approve', details: { pembeli: order.user_name, total: Number(order.total) } },
+        {
+          entity: 'order',
+          id: order.id,
+          label: `Pesanan #${order.id}`,
+          action: 'approve',
+          details: { pembeli: order.user_name, total: Number(order.total) },
+        },
         conn,
       )
       await notifyUsers(conn, [order.user_id].filter((u) => u !== req.user.id), {
@@ -345,6 +373,14 @@ ordersRouter.post(
       const order = await lockOrder(conn, req.params.id)
       if (paid && !['pending', 'approved'].includes(order.status))
         throw new HttpError(409, 'Pesanan yang ditolak atau dibatalkan tidak perlu dibayar')
+      if (!paid) {
+        const [[{ handedCount }]] = await conn.query(
+          'SELECT COUNT(*) AS handedCount FROM order_items WHERE order_id = ? AND handed_at IS NOT NULL',
+          [order.id],
+        )
+        if (Number(handedCount) > 0)
+          throw new HttpError(409, 'Sebagian barang sudah diserahkan ke pembeli. Batalkan centang penyerahan dulu.')
+      }
       await audit(
         req.user,
         { entity: 'order', id: order.id, label: `Pesanan #${order.id}`, action: paid ? 'mark_paid' : 'mark_unpaid', details: { pembeli: order.user_name } },
@@ -404,8 +440,71 @@ ordersRouter.post(
   }),
 )
 
-// Member: hanya pesanannya sendiri yang masih menunggu. Staff: menunggu atau sudah disetujui
-// (stok dikembalikan ke lokasi asal).
+// Petugas brangkas mencentang barang yang sudah diserahkan ke pembeli. Hanya untuk pesanan yang sudah disetujui
+// DAN dibayar. Body: { item_ids: number[], handed: boolean } (handed=false membatalkan centang).
+ordersRouter.post(
+  '/:id/handover',
+  requireStaff,
+  wrap(async (req, res) => {
+    const handed = req.body?.handed !== false
+    const ids = [...new Set((Array.isArray(req.body?.item_ids) ? req.body.item_ids : []).map(Number))]
+    if (!ids.length || ids.some((n) => !Number.isInteger(n) || n <= 0))
+      throw new HttpError(400, 'Pilih barang yang diserahkan')
+    await withTx(async (conn) => {
+      const order = await lockOrder(conn, req.params.id)
+      if (order.status !== 'approved') throw new HttpError(409, 'Hanya pesanan yang sudah disetujui yang bisa diserahkan')
+      if (!order.paid)
+        throw new HttpError(409, 'Pesanan belum dibayar. Tandai sudah dibayar dulu sebelum barang diserahkan.')
+      const [lines] = await conn.query(
+        'SELECT item_id, item_name, qty, handed_at FROM order_items WHERE order_id = ? ORDER BY item_id FOR UPDATE',
+        [order.id],
+      )
+      const chosen = lines.filter((l) => ids.includes(l.item_id))
+      if (chosen.length !== ids.length) throw new HttpError(400, 'Ada barang yang bukan bagian dari pesanan ini')
+      const changed = chosen.filter((l) => !!l.handed_at !== handed)
+      if (changed.length === 0) return
+      const changedIds = changed.map((l) => l.item_id)
+      if (handed)
+        await conn.query('UPDATE order_items SET handed_at = NOW(), handed_by_name = ? WHERE order_id = ? AND item_id IN (?)', [
+          req.user.name,
+          order.id,
+          changedIds,
+        ])
+      else
+        await conn.query('UPDATE order_items SET handed_at = NULL, handed_by_name = NULL WHERE order_id = ? AND item_id IN (?)', [
+          order.id,
+          changedIds,
+        ])
+      await audit(
+        req.user,
+        {
+          entity: 'order',
+          id: order.id,
+          label: `Pesanan #${order.id}`,
+          action: handed ? 'handover' : 'unhandover',
+          details: { pembeli: order.user_name, barang: changed.map((l) => `${l.item_name} ×${l.qty}`).join(', ') },
+        },
+        conn,
+      )
+      if (handed) {
+        const [[{ remaining }]] = await conn.query(
+          'SELECT COUNT(*) AS remaining FROM order_items WHERE order_id = ? AND handed_at IS NULL',
+          [order.id],
+        )
+        if (Number(remaining) === 0)
+          await notifyUsers(conn, [order.user_id].filter((u) => u !== req.user.id), {
+            kind: 'order_handed',
+            title: `Pesananmu #${order.id} sudah diserahkan`,
+            link: '/orders',
+          })
+      }
+    })
+    res.json({ ok: true })
+  }),
+)
+
+// Staff: pesanan menunggu atau aktif (stok dikembalikan ke lokasi asal). Member: pesanannya sendiri selama
+// belum dibayar. Pesanan yang barangnya sudah ada yang diserahkan tidak bisa dibatalkan.
 ordersRouter.post(
   '/:id/cancel',
   wrap(async (req, res) => {
@@ -416,7 +515,16 @@ ordersRouter.post(
 
       if (order.status === 'pending') {
         // langsung dibatalkan; stok belum terpotong
-      } else if (order.status === 'approved' && staff) {
+      } else if (order.status === 'approved' && (staff || (order.user_id === req.user.id && !order.paid))) {
+        const [[{ handedCount }]] = await conn.query(
+          'SELECT COUNT(*) AS handedCount FROM order_items WHERE order_id = ? AND handed_at IS NOT NULL',
+          [order.id],
+        )
+        if (Number(handedCount) > 0)
+          throw new HttpError(
+            409,
+            'Sebagian barang sudah diserahkan ke pembeli. Batalkan centang penyerahan dulu sebelum membatalkan pesanan.',
+          )
         const [allocs] = await conn.query(
           'SELECT item_id, location_id, qty FROM order_allocations WHERE order_id = ? ORDER BY item_id',
           [order.id],

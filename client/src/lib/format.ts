@@ -27,9 +27,10 @@ export const locationKinds: Record<string, string> = {
 export const formatMoney = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 
+// Pesanan Market langsung aktif tanpa persetujuan ("approved"); "Menunggu" hanya untuk pesanan lama.
 export const orderStatusLabel: Record<OrderStatus, string> = {
   pending: 'Menunggu',
-  approved: 'Disetujui',
+  approved: 'Diproses',
   rejected: 'Ditolak',
   cancelled: 'Dibatalkan',
 }

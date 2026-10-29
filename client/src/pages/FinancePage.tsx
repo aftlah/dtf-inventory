@@ -72,7 +72,7 @@ export function FinancePage() {
 
   return (
     <PageStack>
-      <PageHeader title="Laporan Keuangan" subtitle="Penjualan, modal (HPP), dan profit dari pesanan Market yang disetujui dan Penjualan yang dilaporkan.">
+      <PageHeader title="Laporan Keuangan" subtitle="Penjualan, modal (HPP), dan profit dari pesanan Market yang aktif (tidak dibatalkan) dan Penjualan yang dilaporkan.">
         <div className="flex flex-wrap items-center gap-3">
           <FilterTabs value={preset} onChange={(v) => setPreset(v as Preset)} tabs={PRESETS} label="Periode" />
           {preset === 'custom' ? (

@@ -151,3 +151,14 @@ Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah ro
 
 - **Pesanan:** bisa dicari berdasarkan nomor pesanan, nama pembeli, atau nama barang, dan difilter dengan rentang tanggal (hari menurut WIB). Daftar dimuat 30 pesanan per halaman, tombol *Muat lebih banyak* menambah 30 lagi (maksimal 200 terbaru). API: `GET /api/orders?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=&offset=`.
 - **PWA:** aplikasi punya `manifest.webmanifest` dan ikon, jadi bisa dipasang ke layar utama HP (Chrome: menu ⋮ → *Tambahkan ke layar utama* / *Instal aplikasi*; Safari iOS: Bagikan → *Tambah ke Layar Utama*) dan terbuka seperti aplikasi tanpa bilah alamat. Tidak ada service worker, jadi data selalu diambil langsung dari server dan tidak ada risiko tampilan lama tersangkut di cache.
+
+## Alur pesanan Market
+
+Pesanan dari Market **tidak perlu disetujui**: begitu dikirim, pesanan langsung aktif dengan status *Belum dibayar* dan stok langsung keluar dari lokasi Market (tercatat di Riwayat sebagai "Sistem"). Setelah itu:
+
+1. **Belum dibayar:** staff menandai *sudah dibayar* (otomatis tercatat di Buku Kas). Pembeli boleh membatalkan pesanannya selama belum dibayar; stok kembali.
+2. **Perlu diserahkan:** setelah lunas, petugas brangkas (admin/staff) membuka pesanan dan mencentang tiap barang yang sudah diserahkan. Pembeli melihat status per barang dan mendapat notifikasi saat semuanya sudah diserahkan.
+3. **Selesai:** lunas dan semua barang diserahkan. Pesanan yang sebagian barangnya sudah diserahkan tidak bisa dibatalkan atau ditandai belum dibayar; batalkan centang dulu.
+
+Tab *Menunggu* (dengan tombol Setujui/Tolak) hanya muncul bila masih ada pesanan lama yang berstatus menunggu persetujuan.
+Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah kolom penyerahan barang).

@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty        INT UNSIGNED NOT NULL,
   unit_price BIGINT UNSIGNED NOT NULL,          -- harga saat dipesan; mengubah harga tidak mengubah pesanan lama
   cost       BIGINT UNSIGNED NOT NULL DEFAULT 0, -- harga modal per unit saat dipesan (snapshot)
+  handed_at  TIMESTAMP NULL,                    -- kapan barang diserahkan ke pembeli (dicentang petugas brangkas)
+  handed_by_name VARCHAR(100) NULL,
   CONSTRAINT oi_qty_chk CHECK (qty > 0),
   CONSTRAINT oi_order_fk FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
   CONSTRAINT oi_item_fk FOREIGN KEY (item_id) REFERENCES items (id),

@@ -30,7 +30,7 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Link to="/orders" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-          <Kpi label="Pesanan menunggu" value={formatNumber(counts.pending_orders)} hint="perlu diproses" icon={Receipt} />
+          <Kpi label="Pesanan aktif" value={formatNumber(counts.pending_orders)} hint="belum dibayar / diserahkan" icon={Receipt} />
         </Link>
         <Link to="/sales" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           <Kpi label="Pengajuan perlu diproses" value={formatNumber(counts.open_requests)} hint="penjualan & pemrosesan" icon={HandCoins} />

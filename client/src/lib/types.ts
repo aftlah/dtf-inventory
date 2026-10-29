@@ -88,7 +88,16 @@ export type Order = {
   paid: boolean
   paid_at: string | null
   paid_by_name: string | null
-  lines: { item_id: number; item_name: string; image_url: string | null; qty: number; unit_price: number }[]
+  lines: {
+    item_id: number
+    item_name: string
+    image_url: string | null
+    qty: number
+    unit_price: number
+    /** Kapan barang diserahkan ke pembeli (dicentang petugas brangkas); null = belum. */
+    handed_at: string | null
+    handed_by_name: string | null
+  }[]
   allocations: { item_id: number; qty: number; location_name: string }[]
 }
 

@@ -47,15 +47,15 @@ type Config = {
 const CONFIG: Record<CartKind, Config> = {
   market: {
     title: 'Market',
-    subtitle: 'Pilih barang, masukkan ke keranjang, lalu kirim pesanan. Pesanan diproses setelah disetujui staff.',
+    subtitle: 'Pilih barang, masukkan ke keranjang, lalu kirim pesanan. Setelah itu lakukan pembayaran, dan barang diserahkan petugas.',
     cartTitle: 'Keranjang',
     submitLabel: 'Kirim pesanan',
     submittingLabel: 'Mengirim…',
-    doneText: 'Pesanan dikirim, menunggu persetujuan staff',
+    doneText: 'Pesanan dikirim. Silakan lakukan pembayaran.',
     doneTo: '/orders',
     capByStock: true,
     totalLabel: 'Total',
-    footNote: 'Stok langsung dipesankan untukmu. Pesanan baru diproses setelah disetujui staff.',
+    footNote: 'Stok langsung dipesankan untukmu. Barang diserahkan setelah pesanan dibayar.',
     emptyText: 'Belum ada barang yang dijual',
   },
   sale: {
