@@ -142,9 +142,13 @@ ordersRouter.get(
       where.push('o.user_id = ?')
       params.push(req.user.id)
     }
-    if (['pending', 'approved', 'rejected', 'cancelled'].includes(req.query.status)) {
-      where.push('o.status = ?')
-      params.push(req.query.status)
+    // status boleh satu atau beberapa dipisah koma, mis. status=cancelled,rejected.
+    const statuses = String(req.query.status ?? '')
+      .split(',')
+      .filter((s) => ['pending', 'approved', 'rejected', 'cancelled'].includes(s))
+    if (statuses.length) {
+      where.push('o.status IN (?)')
+      params.push(statuses)
     }
     // Pesanan yang masih harus dibayar: belum lunas dan masih berlaku (bukan ditolak/dibatalkan).
     if (req.query.payment === 'unpaid') where.push(`o.paid = 0 AND o.status IN ('pending', 'approved')`)

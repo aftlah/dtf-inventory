@@ -20,16 +20,27 @@ const tone: Record<OrderStatus, 'default' | 'good' | 'bad' | 'warn'> = {
   cancelled: 'default',
 }
 
+// Menunggu = perlu disetujui; Belum dibayar = sudah disetujui tapi belum lunas; Selesai = disetujui dan lunas;
+// Dibatalkan = dibatalkan pembeli/staff atau ditolak.
 const FILTERS: { value: string; label: string }[] = [
   { value: 'pending', label: 'Menunggu' },
-  { value: 'approved', label: 'Disetujui' },
   { value: 'unpaid', label: 'Belum dibayar' },
+  { value: 'done', label: 'Selesai' },
+  { value: 'cancelled', label: 'Dibatalkan' },
   { value: 'all', label: 'Semua' },
 ]
 
+const FILTER_QUERY: Record<string, string> = {
+  all: '',
+  pending: 'status=pending',
+  unpaid: 'status=approved&payment=unpaid',
+  done: 'status=approved&payment=paid',
+  cancelled: 'status=cancelled,rejected',
+}
+
 function ordersUrl(filter: string) {
-  if (filter === 'all') return '/orders'
-  return filter === 'unpaid' ? '/orders?payment=unpaid' : `/orders?status=${filter}`
+  const qs = FILTER_QUERY[filter] ?? ''
+  return qs ? `/orders?${qs}` : '/orders'
 }
 
 const THUMBS = 3
@@ -49,6 +60,7 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => void }
   const showPayment = order.status === 'pending' || order.status === 'approved' || order.paid
   const canMarkPaid = isStaff && (order.paid || order.status === 'pending' || order.status === 'approved')
 
+  const done = order.status === 'approved' && order.paid // disetujui dan lunas
   const totalQty = order.lines.reduce((sum, l) => sum + l.qty, 0)
   const shown = order.lines.slice(0, 2).map((l) => `${l.item_name} ×${formatNumber(l.qty)}`)
   const rest = order.lines.length - shown.length
@@ -128,8 +140,8 @@ function OrderCard({ order, onChanged }: { order: Order; onChanged: () => void }
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-1.5 font-semibold">
               #{order.id}
-              <ToneBadge tone={tone[order.status]}>{orderStatusLabel[order.status]}</ToneBadge>
-              {showPayment ? (
+              <ToneBadge tone={tone[order.status]}>{done ? 'Selesai' : orderStatusLabel[order.status]}</ToneBadge>
+              {showPayment && !done ? (
                 <ToneBadge tone={order.paid ? 'good' : 'bad'}>{order.paid ? 'Lunas' : 'Belum dibayar'}</ToneBadge>
               ) : null}
             </span>
@@ -315,8 +327,12 @@ export function OrdersPage() {
               : filter === 'pending'
                 ? 'Tidak ada pesanan yang menunggu'
                 : filter === 'unpaid'
-                  ? 'Semua pesanan sudah dibayar'
-                  : 'Belum ada pesanan'
+                  ? 'Semua pesanan yang disetujui sudah dibayar'
+                  : filter === 'done'
+                    ? 'Belum ada pesanan yang selesai'
+                    : filter === 'cancelled'
+                      ? 'Tidak ada pesanan yang dibatalkan'
+                      : 'Belum ada pesanan'
           }
         />
       ) : (
