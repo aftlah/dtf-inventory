@@ -239,6 +239,25 @@ ordersRouter.get(
   }),
 )
 
+// Angka penanda di tab Pesanan: yang masih butuh tindakan. Staff melihat semua pesanan, pembeli hanya miliknya.
+ordersRouter.get(
+  '/counts',
+  wrap(async (req, res) => {
+    const staff = isStaff(req.user)
+    const [row] = await query(
+      `SELECT
+         SUM(o.status = 'pending') AS pending,
+         SUM(o.status = 'approved' AND o.paid = 0) AS unpaid,
+         SUM(o.status = 'approved' AND o.paid = 1
+             AND EXISTS (SELECT 1 FROM order_items h WHERE h.order_id = o.id AND h.handed_at IS NULL)) AS handover
+         FROM orders o
+        WHERE o.status IN ('pending', 'approved')${staff ? '' : ' AND o.user_id = ?'}`,
+      staff ? [] : [req.user.id],
+    )
+    res.json({ pending: Number(row.pending ?? 0), unpaid: Number(row.unpaid ?? 0), handover: Number(row.handover ?? 0) })
+  }),
+)
+
 async function lockOrder(conn, id) {
   const [[order]] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [id])
   if (!order) throw new HttpError(404, 'Pesanan tidak ditemukan')

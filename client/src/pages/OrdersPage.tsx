@@ -378,15 +378,23 @@ export function OrdersPage() {
   }, [filter, q, from, to, limit])
 
   // Pesanan lama yang masih menunggu persetujuan (sebelum pesanan otomatis aktif): tab "Menunggu" hanya muncul bila ada.
-  const legacy = useAsync(() => api<Order[]>('/orders?status=pending&limit=1'), [])
-  const hasLegacy = (legacy.data?.length ?? 0) > 0
+  // Angka penanda di tab (butuh tindakan): diperbarui tiap 30 detik dan setiap kali ada perubahan.
+  const counts = useAsync(() => api<{ pending: number; unpaid: number; handover: number }>('/orders/counts'), [])
   useEffect(() => {
-    if (filter === 'pending' && legacy.data && legacy.data.length === 0) setFilter('unpaid')
-  }, [filter, legacy.data])
-  const tabs = hasLegacy ? [PENDING_TAB, ...FILTERS] : FILTERS
+    const t = setInterval(() => counts.reload(), 30000)
+    return () => clearInterval(t)
+  }, [counts.reload])
+  const hasLegacy = (counts.data?.pending ?? 0) > 0
+  useEffect(() => {
+    if (filter === 'pending' && counts.data && counts.data.pending === 0) setFilter('unpaid')
+  }, [filter, counts.data])
+  const tabs = (hasLegacy ? [PENDING_TAB, ...FILTERS] : FILTERS).map((t) => ({
+    ...t,
+    count: t.value === 'pending' ? counts.data?.pending : t.value === 'unpaid' ? counts.data?.unpaid : t.value === 'handover' ? counts.data?.handover : undefined,
+  }))
   const refresh = () => {
     reload()
-    legacy.reload()
+    counts.reload()
   }
 
   const filtered = q !== '' || from !== '' || to !== ''

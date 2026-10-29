@@ -299,7 +299,8 @@ export function FilterTabs({
 }: {
   value: string
   onChange: (value: string) => void
-  tabs: { value: string; label: string }[]
+  /** `count` > 0 menampilkan angka penanda di tab (mis. jumlah yang butuh tindakan). */
+  tabs: { value: string; label: string; count?: number }[]
   label?: string
 }) {
   return (
@@ -325,6 +326,17 @@ export function FilterTabs({
             )}
           >
             {t.label}
+            {t.count ? (
+              <span
+                className={cn(
+                  'ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] leading-5 font-semibold tabular-nums',
+                  active ? 'bg-primary text-primary-foreground' : 'bg-primary/20 text-primary',
+                )}
+                aria-label={`${t.count} perlu tindakan`}
+              >
+                {t.count > 99 ? '99+' : t.count}
+              </span>
+            ) : null}
           </button>
         )
       })}
