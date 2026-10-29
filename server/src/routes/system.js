@@ -180,7 +180,7 @@ financeRouter.get(
     )
     const topItems = await query(
       `SELECT oi.item_name AS name, SUM(oi.qty) AS qty, SUM(oi.unit_price * oi.qty) AS revenue,
-              SUM((CAST(oi.unit_price AS SIGNED) - CAST(oi.cost AS SIGNED)) * oi.qty) AS profit
+              SUM((CAST(oi.unit_price AS SIGNED) - CAST(oi.cost AS SIGNED)) * CAST(oi.qty AS SIGNED)) AS profit
          FROM order_items oi JOIN orders o ON o.id = oi.order_id
         WHERE o.status = 'approved'${o.sql}
         GROUP BY oi.item_name ORDER BY profit DESC LIMIT 10`,

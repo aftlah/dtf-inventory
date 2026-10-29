@@ -3,6 +3,10 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { requireAdmin, requireAuth, requireStaff } from './auth.js'
+import { pool } from './db.js'
+import { describeError } from './errors.js'
+import { schemaProblems } from './schema-check.js'
+import { wrap } from './util.js'
 import { authRouter } from './routes/auth.js'
 import { cashRouter } from './routes/cash.js'
 import { catalogRouter } from './routes/catalog.js'
@@ -25,6 +29,28 @@ app.use(securityHeaders)
 app.use(express.json({ limit: '100kb' }))
 
 app.use('/api', noStore)
+// Cek hidup (tanpa data): untuk memantau apakah server dan database bisa dipakai.
+app.get(
+  '/api/health',
+  wrap(async (_req, res) => {
+    try {
+      await pool.query('SELECT 1')
+      res.json({ ok: true })
+    } catch {
+      res.status(503).json({ ok: false, error: 'Database tidak bisa dihubungi' })
+    }
+  }),
+)
+// Admin: apakah database sudah sesuai versi aplikasi? Dipakai banner peringatan di tampilan admin.
+app.get(
+  '/api/system/schema',
+  requireAuth,
+  requireAdmin,
+  wrap(async (_req, res) => {
+    const problems = await schemaProblems()
+    res.json({ ok: problems.length === 0, problems })
+  }),
+)
 app.use('/api/auth', authRouter)
 app.use('/api/users', requireAuth, requireAdmin, usersRouter)
 // Semua akun (termasuk member): Market dan pesanan. Pembatasan per-aksi ada di dalam router.
@@ -49,11 +75,47 @@ if (fs.existsSync(dist)) {
   )
 }
 
-app.use((err, _req, res, _next) => {
-  if (!err.status) console.error(err)
-  const status = err.status ?? 500
-  res.status(status).json({ error: status === 500 ? 'Terjadi kesalahan server' : err.message })
+// Penanganan error terpusat: pesan jelas untuk pengguna, kode referensi + detail lengkap di log server.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err)
+  const { status, body } = describeError(err, req)
+  res.status(status).json(body)
+})
+
+// Kesalahan di luar permintaan (mis. di tugas latar): catat lengkap supaya terbaca di stderr.log hosting.
+process.on('unhandledRejection', (reason) => console.error('Unhandled rejection:', reason))
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+  process.exit(1) // Passenger / pm2 menjalankan ulang proses
 })
 
 const port = Number(process.env.PORT ?? 3001)
-app.listen(port, () => console.log(`DTF Inventory API di http://localhost:${port}`))
+app.listen(port, () => {
+  console.log(`DTF Inventory API di http://localhost:${port}`)
+  void startupChecks()
+})
+
+// Periksa database sekali saat start dan laporkan masalahnya dengan jelas di log (tidak menghentikan server).
+async function startupChecks() {
+  try {
+    await pool.query('SELECT 1')
+  } catch (err) {
+    console.error(
+      `PERINGATAN: database tidak bisa dihubungi (${err.code ?? err.name}: ${err.message}).\n` +
+        'Periksa DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD di environment, dan pastikan MySQL menyala.',
+    )
+    return
+  }
+  try {
+    const problems = await schemaProblems()
+    if (problems.length)
+      console.error(
+        'PERINGATAN: database belum sesuai versi aplikasi:\n' +
+          problems.map((p) => `  - ${p}`).join('\n') +
+          '\nSolusi: jalankan "host:db-init" (hosting: Setup Node.js App → Run JS script) atau "npm run db:init" (lokal), lalu restart.',
+      )
+    else console.log('Database terhubung dan sesuai versi aplikasi.')
+  } catch (err) {
+    console.error('Gagal memeriksa skema database:', err.message)
+  }
+}

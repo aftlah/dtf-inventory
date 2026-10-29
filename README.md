@@ -162,3 +162,12 @@ Pesanan dari Market **tidak perlu disetujui**: begitu dikirim, pesanan langsung 
 
 Tab *Menunggu* (dengan tombol Setujui/Tolak) hanya muncul bila masih ada pesanan lama yang berstatus menunggu persetujuan.
 Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah kolom penyerahan barang).
+
+## Penanganan error dan diagnosa
+
+- **Pesan error yang jelas:** error tak terduga di server dijawab dengan pesan yang menjelaskan penyebab dan solusinya (database belum diperbarui, database tidak bisa dihubungi, angka di luar batas, dan seterusnya), plus **kode referensi** (`kode: a1b2c3`). Kode yang sama tercatat lengkap di `stderr.log` hosting, jadi kejadiannya mudah dicari. Admin juga menerima detail teknisnya langsung di layar; member tidak.
+- **Peringatan database di layar admin:** bila kode di server lebih baru daripada database (biasanya `host:db-init` belum dijalankan atau gagal), admin melihat banner kuning yang menyebut kolom/tabel apa yang belum ada dan caranya memperbaiki. Pemeriksaan yang sama dicatat di log saat server start. API: `GET /api/system/schema` (admin) dan `GET /api/health` (publik, tanpa data).
+- **`host:db-init` yang gagal** sekarang menjelaskan sebabnya (password database salah, database tidak ada, user tidak punya izin, `node_modules` hilang) dan apa yang harus dilakukan.
+- **Aplikasi gagal start (503):** penyebabnya ditulis di `stderr.log`, misalnya "paket belum terpasang → Run NPM Install".
+- **Tampilan:** error saat memuat data menampilkan pesan lengkap (bukan sekadar "terjadi kesalahan"), dan error di dalam tampilan tidak lagi membuat layar kosong.
+- Saat menambah kolom baru di `schema.sql`, tambahkan juga di `server/src/migrations.js` (satu daftar dipakai migrasi dan pemeriksa skema).

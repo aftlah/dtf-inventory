@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { brand } from '@/brand'
+import { SchemaWarning } from '@/components/SchemaWarning'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -264,6 +265,7 @@ function readSidebarOpen() {
 }
 
 export function Layout() {
+  const { isAdmin } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpen)
 
@@ -329,6 +331,7 @@ export function Layout() {
           <NotificationBell />
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-5">
+          {isAdmin ? <SchemaWarning /> : null}
           <Outlet />
         </main>
       </div>

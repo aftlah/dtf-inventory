@@ -426,7 +426,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   return (
     <div className="flex flex-col items-center gap-3 py-16 text-center">
       <AlertCircle className="size-6 text-destructive" aria-hidden />
-      <p className="text-sm text-muted-foreground">{message}</p>
+      <p className="max-w-lg text-sm whitespace-pre-line text-muted-foreground">{message}</p>
       {onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry}>
           Coba lagi
