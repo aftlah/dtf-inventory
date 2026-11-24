@@ -165,7 +165,7 @@ function readCollapsed(): Record<string, boolean> {
 }
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { isAdmin, isStaff, isAttendanceOnly, user } = useAuth()
+  const { isAdmin, isStaff, user } = useAuth()
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed)
 
@@ -189,13 +189,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         ...g,
         items: g.items
           .filter((i) => allowed(i.access))
-          // Holly/Hangaround hanya melihat Absensi.
-          .filter((i) => !isAttendanceOnly || i.to === '/attendance')
           // Member hanya melihat pesanannya sendiri.
           .map((i) => (i.to === '/orders' && !isStaff ? { ...i, label: 'Pesanan Saya' } : i)),
       }))
       .filter((g) => g.items.length)
-  }, [isAdmin, isStaff, isAttendanceOnly, user?.role])
+  }, [isAdmin, isStaff, user?.role])
 
   return (
     <div className="flex h-full w-60 flex-col">
@@ -271,7 +269,7 @@ function readSidebarOpen() {
 }
 
 export function Layout() {
-  const { isAdmin, isAttendanceOnly } = useAuth()
+  const { isAdmin } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpen)
 
@@ -334,7 +332,7 @@ export function Layout() {
             {sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
           </Button>
           <div className="flex-1" />
-          {isAttendanceOnly ? null : <NotificationBell />}
+          <NotificationBell />
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-5">
           {isAdmin ? <SchemaWarning /> : null}

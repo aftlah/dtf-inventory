@@ -9,7 +9,7 @@ import {
   PageStack,
   ToneBadge,
 } from '@/components/common'
-import { DayGrid, IzinDialog, statusLabel, statusTone, useCheckIn } from '@/components/attendance'
+import { DayGrid, DayStrip, IzinDialog, statusLabel, statusTone, useCheckIn } from '@/components/attendance'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -344,11 +344,165 @@ function DayRosterView() {
   )
 }
 
+/* ---------- Tampilan fokus: akun yang hanya boleh absen (Holly, Hangaround) ---------- */
+
+// Satu-satunya halaman mereka, jadi bukan tampilan "dashboard": satu kolom di tengah, kartu hari ini besar di atas,
+// lalu ringkasan, kalender, dan catatan terbaru. Kerangka (logo + menu akun) ada di AttendanceLayout.
+function FocusedAttendanceView() {
+  const { user } = useAuth()
+  const { data, error, loading, reload } = useAsync(() => api<MyAttendance>('/attendance/me'), [])
+  const { busy, hadir, izin } = useCheckIn(reload)
+  const [izinOpen, setIzinOpen] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+
+  if (error) return <ErrorState message={error} onRetry={reload} />
+  if (!data) return <LoadingState />
+  const { today, summary, days, upcoming } = data
+  const mine = today.mine
+  const recorded = days.filter((d) => d.status !== null)
+  const listed = showAll ? recorded : recorded.slice(0, 6)
+
+  const theme = !mine
+    ? { Icon: Circle, box: 'border-primary/40 bg-primary/10', icon: 'bg-primary/20 text-primary', title: 'Sudah masuk kota hari ini?' }
+    : mine.status === 'present'
+      ? { Icon: CheckCircle2, box: 'border-emerald-500/40 bg-emerald-500/10', icon: 'bg-emerald-500/20 text-emerald-300', title: 'Kamu sudah masuk kota hari ini' }
+      : { Icon: Clock, box: 'border-amber-500/40 bg-amber-500/10', icon: 'bg-amber-500/20 text-amber-300', title: 'Kamu izin hari ini' }
+  const detail = mine
+    ? `${mine.note ? `${mine.note} · ` : ''}${mine.by_staff ? 'dicatat staff' : `dicatat ${formatClock(mine.at)} WIB`}`
+    : 'Tekan Absen hadir saat kamu masuk kota, atau ajukan izin kalau tidak bisa.'
+
+  return (
+    <div className={cn('flex flex-col gap-5', loading && 'opacity-60')}>
+      <section className={cn('rounded-3xl border p-6 text-center sm:p-8', theme.box)}>
+        <p className="text-sm text-muted-foreground">Halo, {user?.name}</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{formatDayLong(today.day)}</h1>
+        <span className={cn('mx-auto mt-5 flex size-20 items-center justify-center rounded-full', theme.icon)}>
+          <theme.Icon className="size-10" aria-hidden />
+        </span>
+        <p className="mt-4 text-xl font-semibold sm:text-2xl">{theme.title}</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{detail}</p>
+        {mine?.by_staff ? (
+          <p className="mx-auto mt-5 max-w-sm text-xs text-muted-foreground">Dicatat staff, jadi tidak bisa kamu ubah sendiri.</p>
+        ) : (
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            {mine?.status !== 'present' ? (
+              <Button size="lg" className="h-12 px-8 text-base" disabled={busy} onClick={() => void hadir()}>
+                {busy ? <Loader2 className="animate-spin" /> : <Check />} Absen hadir
+              </Button>
+            ) : null}
+            <Button size="lg" variant="outline" className="h-12 px-8 text-base" disabled={busy} onClick={() => setIzinOpen(true)}>
+              <CalendarPlus /> {mine?.status === 'excused' ? 'Ubah izin' : 'Izin'}
+            </Button>
+          </div>
+        )}
+        <div className="mx-auto mt-6 max-w-md">
+          <p className="mb-1.5 text-left text-xs text-muted-foreground">7 hari terakhir</p>
+          <DayStrip days={days.slice(0, 7)} today={today.day} />
+        </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Tingkat kehadiran</p>
+          <p className="text-2xl font-bold tabular-nums">{summary.percent === null ? '—' : `${summary.percent}%`}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Hadir</p>
+          <p className="text-2xl font-bold text-emerald-300 tabular-nums">{summary.present}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Izin</p>
+          <p className="text-2xl font-bold text-amber-300 tabular-nums">{summary.excused}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Tidak hadir</p>
+          <p className={cn('text-2xl font-bold tabular-nums', summary.absent > 0 && 'text-destructive')}>{summary.absent}</p>
+        </div>
+      </div>
+
+      {upcoming.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Izin terjadwal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-border/60">
+              {upcoming.map((u) => (
+                <li key={u.day} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="block font-medium">{formatDayLong(u.day)}</span>
+                    {u.note ? <span className="block truncate text-xs text-muted-foreground">{u.note}</span> : null}
+                  </span>
+                  <ToneBadge tone="warn">Izin</ToneBadge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Kehadiran {summary.window_days} hari terakhir</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 sm:grid-cols-[minmax(0,19rem)_1fr]">
+          <DayGrid days={days} today={today.day} />
+          <div className="min-w-0">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">Catatan terbaru</p>
+            {recorded.length === 0 ? (
+              <p className="rounded-lg bg-muted/20 px-3 py-8 text-center text-sm text-muted-foreground">Belum ada catatan kehadiran</p>
+            ) : (
+              <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+                {listed.map((d) => (
+                  <li key={d.day} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <span className="block font-medium">{formatDayLong(d.day)}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {d.note ? `${d.note} · ` : ''}
+                        {d.status === 'present' && d.at ? `${formatClock(d.at)} WIB` : ''}
+                        {d.by_staff ? ' · dicatat staff' : ''}
+                      </span>
+                    </span>
+                    {d.status ? <ToneBadge tone={statusTone[d.status]}>{statusLabel[d.status]}</ToneBadge> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {recorded.length > 6 ? (
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${recorded.length})`}
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+      <p className="px-1 text-center text-[11px] text-muted-foreground">
+        Izin tidak dihitung sebagai tidak hadir. Hari yang sudah lewat tanpa absen dihitung tidak hadir, sejak absensi mulai dipakai.
+      </p>
+
+      <IzinDialog
+        open={izinOpen}
+        title="Ajukan izin"
+        description="Tulis alasan kamu tidak bisa masuk kota. Keterangan wajib diisi dan bisa dilihat staff. Bisa juga untuk hari lain (sampai 14 hari ke depan)."
+        today={today.day}
+        initialDay={today.day}
+        initialNote={mine?.status === 'excused' ? (mine.note ?? '') : ''}
+        busy={busy}
+        onSubmit={(day, note) => void izin(day, note).then((ok) => ok && setIzinOpen(false))}
+        onClose={() => setIzinOpen(false)}
+      />
+    </div>
+  )
+}
+
 /* ---------- Halaman ---------- */
 
 export function AttendancePage() {
-  const { isStaff } = useAuth()
+  const { isStaff, isAttendanceOnly } = useAuth()
   const [tab, setTab] = useState<'me' | 'staff'>('me')
+
+  // Holly/Hangaround: halaman ini satu-satunya, jadi tampilannya dibuat fokus (bukan dashboard).
+  if (isAttendanceOnly) return <FocusedAttendanceView />
 
   return (
     <PageStack>

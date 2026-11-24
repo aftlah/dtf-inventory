@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { AttendanceLayout } from '@/components/AttendanceLayout'
 import { Layout } from '@/components/Layout'
 import { LoadingState } from '@/components/common'
 import { useAuth } from '@/contexts/AuthContext'
@@ -29,7 +30,7 @@ export function App() {
   if (isAttendanceOnly)
     return (
       <Routes>
-        <Route element={<Layout />}>
+        <Route element={<AttendanceLayout />}>
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/attendance" replace />} />
