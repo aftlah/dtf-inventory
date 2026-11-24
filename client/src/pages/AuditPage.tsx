@@ -26,6 +26,7 @@ const ENTITY: Record<string, string> = {
   order: 'Pesanan',
   request: 'Pengajuan',
   cash: 'Buku kas',
+  attendance: 'Absensi',
 }
 
 const ACTION: Record<string, { label: string; tone: 'default' | 'good' | 'bad' | 'warn' }> = {
@@ -42,6 +43,8 @@ const ACTION: Record<string, { label: string; tone: 'default' | 'good' | 'bad' |
   mark_unpaid: { label: 'Belum dibayar', tone: 'default' },
   handover: { label: 'Diserahkan', tone: 'good' },
   unhandover: { label: 'Penyerahan dibatalkan', tone: 'default' },
+  mark: { label: 'Dicatat staff', tone: 'warn' },
+  clear: { label: 'Catatan dihapus', tone: 'default' },
   wash_status: { label: 'Status uang', tone: 'warn' },
   password_change: { label: 'Ganti password', tone: 'default' },
   account_request: { label: 'Ajukan akun', tone: 'warn' },
@@ -86,6 +89,12 @@ const FIELD: Record<string, string> = {
   jenis: 'Jenis',
   status: 'Status',
   status_sebelumnya: 'Sebelumnya',
+  judul: 'Judul',
+  catatan: 'Catatan',
+  mulai: 'Mulai',
+  selesai: 'Selesai',
+  keterangan: 'Keterangan',
+  dicatat_untuk: 'Dicatat untuk',
   password: 'Password',
 }
 const BOOL = new Set(['active', 'in_market', 'in_sale', 'in_process', 'in_buyback', 'sell_in_market'])

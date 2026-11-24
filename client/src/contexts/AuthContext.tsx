@@ -7,6 +7,8 @@ type AuthState = {
   loading: boolean
   isAdmin: boolean
   isStaff: boolean
+  /** Role holly/hangaround: hanya boleh absen. */
+  isAttendanceOnly: boolean
   signIn: (username: string, password: string) => Promise<void>
   signOut: () => void
 }
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       isAdmin: user?.role === 'admin',
       isStaff: user?.role === 'admin' || user?.role === 'staff',
+      isAttendanceOnly: user?.role === 'holly' || user?.role === 'hangaround',
       signIn,
       signOut,
     }),

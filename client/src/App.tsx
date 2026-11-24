@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { LoadingState } from '@/components/common'
 import { useAuth } from '@/contexts/AuthContext'
+import { AttendancePage } from '@/pages/AttendancePage'
 import { CashPage } from '@/pages/CashPage'
 import { AuditPage } from '@/pages/AuditPage'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -20,9 +21,21 @@ import { StockPage } from '@/pages/StockPage'
 import { UsersPage } from '@/pages/UsersPage'
 
 export function App() {
-  const { user, loading, isAdmin, isStaff } = useAuth()
+  const { user, loading, isAdmin, isStaff, isAttendanceOnly } = useAuth()
   if (loading) return <LoadingState />
   if (!user) return <LoginPage />
+
+  // Holly dan Hangaround hanya boleh absen (plus profil/ganti password); halaman lain dialihkan ke Absensi.
+  if (isAttendanceOnly)
+    return (
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="attendance" element={<AttendancePage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="*" element={<Navigate to="/attendance" replace />} />
+        </Route>
+      </Routes>
+    )
 
   // Member punya dashboard sendiri, Market, penjualan/pemrosesan, pesanan sendiri, dan profil.
   return (
@@ -37,6 +50,7 @@ export function App() {
         <Route path="buyback" element={<RequestsPage kind="buyback" />} />
         <Route path="process/new" element={<ShopPage kind="process" />} />
         <Route path="process" element={<RequestsPage kind="process" />} />
+        <Route path="attendance" element={<AttendancePage />} />
         <Route path="profile" element={<ProfilePage />} />
         {isStaff ? (
           <>

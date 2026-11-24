@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'staff' | 'member' | 'highrank'
+export type Role = 'admin' | 'staff' | 'member' | 'highrank' | 'holly' | 'hangaround'
 
 export type AccountRequest = { id: number; name: string; username: string; created_at: string }
 
@@ -228,4 +228,49 @@ export type MemberDashboard = {
     created_at: string
   }[]
   leaderboard: { week_start: string; week_end: string; spenders: LeaderRow[]; sellers: LeaderRow[] }
+}
+
+/* ---------- Absensi harian ---------- */
+
+export type AttendanceStatus = 'present' | 'excused'
+/** Catatan kehadiran seseorang pada satu hari. */
+export type AttendanceMine = { status: AttendanceStatus; note: string | null; by_staff: boolean; at: string }
+/** Status satu hari: 'absent' = hari lewat tanpa catatan; null = belum ada (hari ini/ke depan, atau sebelum akun dibuat). */
+export type AttendanceDayStatus = AttendanceStatus | 'absent' | null
+
+export type MyAttendance = {
+  today: { day: string; mine: AttendanceMine | null }
+  summary: { present: number; excused: number; absent: number; total: number; percent: number | null; window_days: number }
+  days: { day: string; status: AttendanceDayStatus; note: string | null; by_staff: boolean; at: string | null }[]
+  upcoming: { day: string; note: string | null; by_staff: boolean }[]
+}
+
+/** Staff: ringkasan jumlah per hari (hari ini ke belakang). */
+export type AttendanceDays = {
+  today: string
+  roster_size: number
+  days: { day: string; present: number; excused: number }[]
+}
+
+export type AttendancePerson = {
+  user_id: number
+  name: string
+  username: string
+  role: Role
+  status: AttendanceStatus | null
+  note: string | null
+  marked_by_name: string | null
+  marked_by_staff: boolean
+  checked_at: string | null
+}
+
+/** Staff: semua akun pada satu tanggal. */
+export type AttendanceDay = {
+  day: string
+  today: string
+  state: 'past' | 'today' | 'future'
+  /** false = hari sebelum absensi mulai dipakai; akun tanpa catatan tidak dianggap tidak hadir. */
+  tracked: boolean
+  counts: { present: number; excused: number; none: number }
+  people: AttendancePerson[]
 }

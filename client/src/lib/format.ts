@@ -55,3 +55,18 @@ export function formatDate(ymd: string) {
   const [y, m, d] = ymd.split('-').map(Number)
   return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(y, m - 1, d))
 }
+
+// Tanggal absensi dipertukarkan sebagai 'YYYY-MM-DD' (tanggal WIB). Dihitung di zona UTC supaya tidak bergeser hari.
+const dayFmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('id-ID', { ...opts, timeZone: 'UTC' })
+const dayDate = (ymd: string) => new Date(`${ymd}T00:00:00Z`)
+/** "Senin, 24 Nov 2026" */
+export const formatDayLong = (ymd: string) => dayFmt({ weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).format(dayDate(ymd))
+/** "24 Nov" */
+export const formatDayShort = (ymd: string) => dayFmt({ day: 'numeric', month: 'short' }).format(dayDate(ymd))
+/** "Sen" */
+export const formatWeekday = (ymd: string) => dayFmt({ weekday: 'short' }).format(dayDate(ymd))
+/** Geser tanggal 'YYYY-MM-DD' sebanyak n hari. */
+export const shiftDay = (ymd: string, n: number) => new Date(dayDate(ymd).getTime() + n * 86400000).toISOString().slice(0, 10)
+/** Jam menurut WIB, mis. "21.05". */
+export const formatClock = (iso: string) =>
+  new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(iso))

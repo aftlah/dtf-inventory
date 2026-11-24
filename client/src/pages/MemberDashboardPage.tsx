@@ -21,6 +21,7 @@ import {
   PageStack,
   ToneBadge,
 } from '@/components/common'
+import { AttendanceCard } from '@/components/attendance'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -244,6 +245,8 @@ export function MemberDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AttendanceCard />
 
       <div>
         <p className="mb-2 text-xs text-muted-foreground">

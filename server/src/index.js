@@ -2,11 +2,12 @@ import express from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { requireAdmin, requireAuth, requireStaff } from './auth.js'
+import { requireAdmin, requireAuth, requireFullAccess, requireStaff } from './auth.js'
 import { pool } from './db.js'
 import { describeError } from './errors.js'
 import { schemaProblems } from './schema-check.js'
 import { wrap } from './util.js'
+import { attendanceRouter } from './routes/attendance.js'
 import { authRouter } from './routes/auth.js'
 import { cashRouter } from './routes/cash.js'
 import { catalogRouter } from './routes/catalog.js'
@@ -54,11 +55,13 @@ app.get(
 app.use('/api/auth', authRouter)
 app.use('/api/users', requireAuth, requireAdmin, usersRouter)
 // Semua akun (termasuk member): Market dan pesanan. Pembatasan per-aksi ada di dalam router.
-app.use('/api/market', requireAuth, marketRouter)
-app.use('/api/orders', requireAuth, ordersRouter)
-app.use('/api/requests', requireAuth, requestsRouter)
-app.use('/api/notifications', requireAuth, notificationsRouter)
-app.use('/api/me', requireAuth, meRouter)
+app.use('/api/market', requireAuth, requireFullAccess, marketRouter)
+app.use('/api/orders', requireAuth, requireFullAccess, ordersRouter)
+app.use('/api/requests', requireAuth, requireFullAccess, requestsRouter)
+// Absensi: semua role, termasuk holly/hangaround (yang hanya boleh ini).
+app.use('/api/attendance', requireAuth, attendanceRouter)
+app.use('/api/notifications', requireAuth, requireFullAccess, notificationsRouter)
+app.use('/api/me', requireAuth, requireFullAccess, meRouter)
 // Sisanya hanya admin/staff.
 app.use('/api/cash', requireAuth, requireStaff, cashRouter)
 app.use('/api/audit', requireAuth, requireStaff, auditRouter)

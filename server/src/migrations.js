@@ -46,6 +46,7 @@ export const TABLES = [
   'audit_log',
   'notifications',
   'account_requests',
+  'attendance_daily',
 ]
 
 export const VIEWS = ['stock_levels']

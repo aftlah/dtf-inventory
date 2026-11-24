@@ -75,7 +75,7 @@ try {
   }
   await conn.query(`ALTER TABLE requests MODIFY kind ENUM('sale','process','buyback') NOT NULL`)
   await conn.query(
-    `ALTER TABLE users MODIFY role ENUM('admin','staff','member','highrank') NOT NULL DEFAULT 'staff'`,
+    `ALTER TABLE users MODIFY role ENUM('admin','staff','member','highrank','holly','hangaround') NOT NULL DEFAULT 'staff'`,
   )
 
   console.log(`Skema siap di database "${dbName}"`)

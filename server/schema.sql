@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(100) NOT NULL,
   username      VARCHAR(50)  NOT NULL UNIQUE,
   password_hash VARCHAR(100) NOT NULL,
-  role          ENUM('admin','staff','member','highrank') NOT NULL DEFAULT 'staff',
+  role          ENUM('admin','staff','member','highrank','holly','hangaround') NOT NULL DEFAULT 'staff',
   active        TINYINT(1) NOT NULL DEFAULT 1,
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -248,4 +248,22 @@ CREATE TABLE IF NOT EXISTS account_requests (
   pending_key   TINYINT GENERATED ALWAYS AS (IF(status = 'pending', 1, NULL)) STORED, -- satu permintaan pending per username
   UNIQUE KEY account_req_pending_uq (username, pending_key),
   KEY account_req_status_idx (status, created_at)
+) ENGINE=InnoDB;
+
+
+-- Absensi harian: tiap akun absen sekali per hari (tanggal menurut WIB). "Hadir" = masuk kota hari itu; "Izin" wajib
+-- berketerangan dan boleh diajukan untuk hari ini atau hari-hari ke depan. Hari yang sudah lewat tanpa catatan dianggap
+-- tidak hadir (tidak disimpan, dihitung saat dibaca). Staff bisa mencatat/mengoreksi hari mana pun.
+CREATE TABLE IF NOT EXISTS attendance_daily (
+  id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id         BIGINT UNSIGNED NOT NULL,
+  day             DATE NOT NULL,                  -- tanggal WIB
+  status          ENUM('present','excused') NOT NULL,
+  note            VARCHAR(500) NULL,              -- keterangan; wajib bila izin
+  marked_by_name  VARCHAR(100) NOT NULL,          -- diri sendiri, atau staff yang mengoreksi
+  marked_by_staff TINYINT(1) NOT NULL DEFAULT 0,  -- 1 = dicatat/dikoreksi staff (member tidak bisa mengubah lagi)
+  checked_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- kapan status ini dicatat (jam masuk kota)
+  CONSTRAINT att_daily_user_fk FOREIGN KEY (user_id) REFERENCES users (id),
+  UNIQUE KEY att_daily_uq (user_id, day),
+  KEY att_daily_day_idx (day)
 ) ENGINE=InnoDB;

@@ -36,5 +36,13 @@ export const requireAdmin = (req, _res, next) =>
 // (beda keduanya hanya batas beli per barang).
 export const isStaff = (user) => user.role === 'admin' || user.role === 'staff'
 
+// Role "holly" dan "hangaround" hanya boleh absen (halaman Absensi, profil, dan ganti password). Semua fitur lain
+// (Market, pesanan, pengajuan, notifikasi, dashboard) ditolak; yang khusus staff/admin sudah ditolak oleh requireStaff.
+export const ATTENDANCE_ONLY_ROLES = ['holly', 'hangaround']
+export const isAttendanceOnly = (user) => ATTENDANCE_ONLY_ROLES.includes(user.role)
+
+export const requireFullAccess = (req, _res, next) =>
+  isAttendanceOnly(req.user) ? next(new HttpError(403, 'Akun ini hanya punya akses absensi.')) : next()
+
 export const requireStaff = (req, _res, next) =>
   isStaff(req.user) ? next() : next(new HttpError(403, 'Tidak punya akses'))

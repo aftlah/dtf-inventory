@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, HandCoins, MapPin, Package, Receipt } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, CalendarCheck, HandCoins, MapPin, Package, Receipt } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   EmptyState,
@@ -9,16 +9,19 @@ import {
   PageStack,
   ToneBadge,
 } from '@/components/common'
+import { AttendanceCard } from '@/components/attendance'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { formatDateTime, formatNumber, logTypeLabel } from '@/lib/format'
-import type { Dashboard } from '@/lib/types'
+import type { AttendanceDays, Dashboard } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
 
 export function DashboardPage() {
   const { user } = useAuth()
   const { data, error, loading, reload } = useAsync(() => api<Dashboard>('/dashboard'), [])
+  // Jumlah yang masuk kota hari ini; bila gagal dimuat, kartunya tidak tampil.
+  const attendance = useAsync(() => api<AttendanceDays>('/attendance/days?limit=1'), [])
 
   if (error) return <ErrorState message={error} onRetry={reload} />
   if (loading || !data) return <LoadingState />
@@ -35,12 +38,24 @@ export function DashboardPage() {
         <Link to="/sales" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           <Kpi label="Pengajuan perlu diproses" value={formatNumber(counts.open_requests)} hint="penjualan & pemrosesan" icon={HandCoins} />
         </Link>
+        {attendance.data ? (
+          <Link to="/attendance" className="rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+            <Kpi
+              label="Masuk kota hari ini"
+              value={formatNumber(attendance.data.days[0]?.present ?? 0)}
+              hint={`izin ${formatNumber(attendance.data.days[0]?.excused ?? 0)} · dari ${formatNumber(attendance.data.roster_size)} akun`}
+              icon={CalendarCheck}
+            />
+          </Link>
+        ) : null}
         <Kpi label="Jenis barang" value={formatNumber(counts.items)} icon={Package} />
         <Kpi label="Lokasi" value={formatNumber(counts.locations)} icon={MapPin} />
         <Kpi label="Total unit" value={formatNumber(counts.units)} icon={Boxes} />
         <Kpi label="Masuk hari ini" value={formatNumber(counts.in_today)} hint="transaksi" icon={ArrowDownToLine} />
         <Kpi label="Keluar hari ini" value={formatNumber(counts.out_today)} hint="transaksi" icon={ArrowUpFromLine} />
       </div>
+
+      <AttendanceCard />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

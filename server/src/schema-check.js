@@ -21,6 +21,8 @@ export async function schemaProblems() {
   for (const [t, c] of COLUMNS) if (have.has(t) && !haveCols.has(`${t}.${c}`)) problems.push(`kolom ${t}.${c} belum ada`)
 
   const role = cols.find((x) => x.t === 'users' && x.c === 'role')
-  if (role && !String(role.ct).includes('highrank')) problems.push('role "highrank" belum ada di tabel users')
+  if (role)
+    for (const r of ['highrank', 'holly', 'hangaround'])
+      if (!String(role.ct).includes(`'${r}'`)) problems.push(`role "${r}" belum ada di tabel users`)
   return problems
 }
