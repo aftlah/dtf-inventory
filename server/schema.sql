@@ -263,6 +263,8 @@ CREATE TABLE IF NOT EXISTS attendance_daily (
   marked_by_name  VARCHAR(100) NOT NULL,          -- diri sendiri, atau staff yang mengoreksi
   marked_by_staff TINYINT(1) NOT NULL DEFAULT 0,  -- 1 = dicatat/dikoreksi staff (member tidak bisa mengubah lagi)
   checked_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- kapan status ini dicatat (jam masuk kota)
+  photo           MEDIUMBLOB NULL,                -- foto absen hadir (JPEG, dikecilkan); dihapus otomatis setelah beberapa hari
+  photo_thumb     MEDIUMBLOB NULL,                -- pratinjau kecil untuk daftar
   CONSTRAINT att_daily_user_fk FOREIGN KEY (user_id) REFERENCES users (id),
   UNIQUE KEY att_daily_uq (user_id, day),
   KEY att_daily_day_idx (day)

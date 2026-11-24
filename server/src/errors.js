@@ -45,6 +45,8 @@ function classify(err) {
     }
   if (code === 'ER_LOCK_DEADLOCK' || code === 'ER_LOCK_WAIT_TIMEOUT')
     return { status: 409, kind: 'BUSY', message: 'Sedang ada proses lain pada data yang sama. Coba lagi sebentar.' }
+  if (code === 'ER_NET_PACKET_TOO_LARGE' || code === 'ER_TOO_BIG_ROWSIZE')
+    return { status: 413, kind: 'TOO_LARGE', message: 'Data yang dikirim terlalu besar untuk database. Coba foto yang lebih kecil.' }
   if (code === 'ER_DUP_ENTRY') return { status: 409, kind: 'DUPLICATE', message: 'Data itu sudah ada.' }
   if (code === 'ER_DATA_TOO_LONG') return { status: 400, kind: 'TOO_LONG', message: 'Ada isian yang terlalu panjang.' }
   if (code === 'ER_NO_REFERENCED_ROW_2' || code === 'ER_ROW_IS_REFERENCED_2')

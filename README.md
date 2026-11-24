@@ -177,12 +177,13 @@ Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (menambah ko
 Absensi dilakukan **per hari** (menu *Absensi*, semua akun; tanggal menurut WIB), supaya terlihat siapa saja yang masuk kota:
 
 - **Absen saya:** setiap hari akun menekan **Absen hadir (masuk kota)**, atau mengajukan **Izin** dengan **keterangan wajib**. Hadir hanya untuk hari ini; izin boleh untuk hari ini sampai 14 hari ke depan. Sampai hari berganti, pilihan hari ini boleh diubah sendiri. Jam absen tercatat (jam masuk kota). Tombol absen juga ada di kartu *Absensi hari ini* di dashboard.
+- **Foto wajib untuk absen hadir:** saat menekan Absen hadir, akun memilih atau mengambil foto (atau menempel screenshot dengan Ctrl+V). Browser mengecilkannya otomatis jadi JPEG (foto 2 MB biasanya jadi puluhan KB) sebelum diunggah. Izin tidak perlu foto. Foto disimpan di database, hanya bisa dilihat pemiliknya dan admin/staff, dan **dihapus otomatis setelah 30 hari** (atur dengan `ATTENDANCE_PHOTO_DAYS` di environment); catatan hadirnya tetap ada. Staff melihat foto di tab *Siapa masuk kota* (klik untuk memperbesar). Catatan yang dibuat staff tidak berfoto.
 - **Siapa masuk kota (admin/staff):** pilih tanggal mana pun untuk melihat semua akun beserta statusnya (masuk kota, izin, atau tidak hadir), jam absen, dan keterangan izin. Ada deretan 14 hari terakhir dengan jumlah yang hadir, dan dashboard staff menampilkan jumlah yang masuk kota hari ini.
 - **Koreksi staff:** staff bisa mencatat Hadir/Izin atau menghapus catatan siapa pun di hari mana pun. Catatan dari staff tidak bisa ditimpa member, dan semua koreksi tercatat di Log Aktivitas.
 - **Tidak hadir:** hari yang sudah lewat tanpa catatan dihitung tidak hadir (tidak disimpan, dihitung saat dibaca). Yang dihitung hanya hari sejak akun dibuat **dan** sejak absensi mulai dipakai (tanggal catatan absen paling awal di sistem), jadi akun lama tidak langsung terlihat tidak hadir untuk hari-hari sebelum fitur ini ada.
 - **Tingkat kehadiran** (30 hari terakhir) = hadir / (hadir + tidak hadir); izin tidak dihitung sebagai tidak hadir. Semua hari dihitung, tanpa hari libur.
 
-Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (membuat tabel `attendance_daily`).
+Setelah memperbarui kode di hosting, jalankan `host:db-init` sekali (membuat tabel `attendance_daily` dan kolom fotonya).
 
 ### Role Holly dan Hangaround (hanya absen)
 

@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { CalendarCheck, Check, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
+import { CalendarCheck, Camera, Check, ImageOff, ImagePlus, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Field, ToneBadge } from '@/components/common'
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/contexts/ToastContext'
-import { api } from '@/lib/api'
+import { api, apiBlob } from '@/lib/api'
 import { formatClock, formatDayLong, formatDayShort, formatWeekday, shiftDay } from '@/lib/format'
-import type { AttendanceDayStatus, AttendanceStatus, MyAttendance } from '@/lib/types'
+import { preparePhoto, type PreparedPhoto } from '@/lib/photo'
+import type { AttendanceDayStatus, AttendanceMine, AttendanceStatus, MyAttendance } from '@/lib/types'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
 
@@ -69,16 +70,248 @@ export function DayStrip({ days, today }: { days: { day: string; status: Attenda
   )
 }
 
-/** Absen hadir hari ini dan ajukan izin. `onDone` dipanggil setelah berhasil (muat ulang data). */
+const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+
+/** Kalender kecil berwarna (minggu mulai Senin): hadir, izin, tidak hadir, atau belum ada data. */
+export function DayGrid({ days, today }: { days: { day: string; status: AttendanceDayStatus }[]; today: string }) {
+  const ordered = [...days].reverse() // dari server: terbaru dulu
+  if (ordered.length === 0) return null
+  const lead = (new Date(`${ordered[0].day}T00:00:00Z`).getUTCDay() + 6) % 7 // kolom Senin = 0
+  return (
+    <div>
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground">
+        {WEEKDAYS.map((w) => (
+          <span key={w}>{w}</span>
+        ))}
+      </div>
+      <ol className="grid grid-cols-7 gap-1" aria-label="Kalender kehadiran">
+        {Array.from({ length: lead }, (_, i) => (
+          <li key={`kosong-${i}`} aria-hidden />
+        ))}
+        {ordered.map((d) => (
+          <li
+            key={d.day}
+            title={`${formatDayShort(d.day)} · ${d.status ? statusLabel[d.status] : 'belum ada data'}`}
+            className={cn(
+              'flex aspect-square items-center justify-center rounded-md text-xs tabular-nums ring-1',
+              cellClass[d.status ?? 'none'],
+              d.day === today && 'ring-2 ring-primary',
+            )}
+          >
+            {Number(d.day.slice(8))}
+          </li>
+        ))}
+      </ol>
+      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-label="Keterangan warna">
+        {(['present', 'excused', 'absent', 'none'] as const).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span className={cn('size-3 rounded-sm ring-1', cellClass[k])} aria-hidden />
+            {k === 'none' ? 'Belum ada data' : statusLabel[k]}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/* ---------- Foto absen ---------- */
+
+/** Foto absen yang dilindungi login: diambil dengan token lalu ditampilkan lewat object URL. */
+export function AuthPhoto({ id, size = 'thumb', alt = 'Foto absen', className }: { id: number; size?: 'thumb' | 'full'; alt?: string; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    let created: string | null = null
+    setUrl(null)
+    setFailed(false)
+    apiBlob(`/attendance/photo/${id}?size=${size}`)
+      .then((blob) => {
+        if (!alive) return
+        created = URL.createObjectURL(blob)
+        setUrl(created)
+      })
+      .catch(() => alive && setFailed(true))
+    return () => {
+      alive = false
+      if (created) URL.revokeObjectURL(created)
+    }
+  }, [id, size])
+
+  if (failed)
+    return (
+      <span className={cn('flex items-center justify-center bg-muted text-muted-foreground', className)} title="Foto tidak tersedia">
+        <ImageOff className="size-4" aria-hidden />
+      </span>
+    )
+  if (!url) return <span className={cn('block animate-pulse bg-muted', className)} aria-hidden />
+  return <img src={url} alt={alt} className={cn('object-cover', className)} />
+}
+
+/** Foto kecil yang bisa diklik untuk melihat foto penuh. */
+export function PhotoThumb({ id, title, subtitle, className }: { id: number; title: string; subtitle?: string; className?: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Lihat foto absen: ${title}`}
+        className="shrink-0 rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <AuthPhoto id={id} className={cn('size-11 rounded-lg', className)} />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className={subtitle ? undefined : 'sr-only'}>{subtitle ?? 'Foto absen'}</DialogDescription>
+          </DialogHeader>
+          {open ? <AuthPhoto id={id} size="full" alt={`Foto absen: ${title}`} className="max-h-[70vh] min-h-40 w-full rounded-lg bg-black/30 object-contain" /> : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+/** Dialog pilih foto untuk absen hadir. Foto dari galeri/kamera, atau tempel screenshot (Ctrl+V). */
+function PhotoDialog({ open, busy, onSubmit, onClose }: { open: boolean; busy: boolean; onSubmit: (p: PreparedPhoto) => void; onClose: () => void }) {
+  const [prepared, setPrepared] = useState<PreparedPhoto | null>(null)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [seen, setSeen] = useState(open)
+  // Kosongkan tiap kali dialog dibuka.
+  if (open !== seen) {
+    setSeen(open)
+    if (open) {
+      setPrepared(null)
+      setError(null)
+    }
+  }
+
+  async function pick(file: File | null | undefined) {
+    if (!file) return
+    setWorking(true)
+    setError(null)
+    try {
+      setPrepared(await preparePhoto(file))
+    } catch (e) {
+      setPrepared(null)
+      setError(e instanceof Error ? e.message : 'Foto tidak bisa dibaca.')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  // Tempel screenshot dari clipboard selama dialog terbuka.
+  useEffect(() => {
+    if (!open) return
+    const onPaste = (e: ClipboardEvent) => {
+      const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'))
+      if (file) {
+        e.preventDefault()
+        void pick(file)
+      }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [open])
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    void pick(e.dataTransfer.files[0])
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Foto absen</DialogTitle>
+          <DialogDescription>
+            Absen hadir harus menyertakan foto. Ambil foto atau pilih screenshot. Di komputer kamu juga bisa menempelnya dengan Ctrl+V.
+          </DialogDescription>
+        </DialogHeader>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => {
+            void pick(e.target.files?.[0])
+            e.target.value = '' // boleh memilih berkas yang sama lagi
+          }}
+        />
+
+        {prepared ? (
+          <div className="flex flex-col gap-3">
+            <img src={prepared.preview} alt="Pratinjau foto absen" className="max-h-72 w-full rounded-xl bg-black/30 object-contain" />
+            <Button type="button" variant="outline" size="sm" className="self-start" disabled={busy || working} onClick={() => inputRef.current?.click()}>
+              <ImagePlus /> Ganti foto
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragging(true)
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            disabled={working}
+            className={cn(
+              'flex h-44 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              dragging ? 'border-primary bg-primary/10' : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40',
+            )}
+          >
+            {working ? <Loader2 className="size-7 animate-spin text-primary" aria-hidden /> : <Camera className="size-7 text-primary" aria-hidden />}
+            <span className="font-medium">{working ? 'Memproses foto…' : 'Pilih atau ambil foto'}</span>
+            <span className="text-xs text-muted-foreground">atau seret dan lepas foto di sini</span>
+          </button>
+        )}
+        {error ? (
+          <p role="alert" className="rounded-lg bg-destructive/15 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Batal
+          </Button>
+          <Button disabled={!prepared || busy || working} onClick={() => prepared && onSubmit(prepared)}>
+            {busy ? <Loader2 className="animate-spin" /> : <Check />} Kirim absen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ---------- Alur absen ---------- */
+
+/**
+ * Absen hadir (wajib berfoto) dan ajukan izin (wajib berketerangan). Memegang keadaan kedua dialog, supaya halaman
+ * cukup memanggil openHadir/openIzin dan memasang <CheckInDialogs>. `onDone` dipanggil setelah selesai (muat ulang data).
+ */
 export function useCheckIn(onDone: () => void) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
+  const [hadirOpen, setHadirOpen] = useState(false)
+  const [izinOpen, setIzinOpen] = useState(false)
 
-  async function send(status: AttendanceStatus, opts: { day?: string; note?: string } = {}) {
+  async function send(body: Record<string, unknown>, okText: string) {
     setBusy(true)
     try {
-      await api('/attendance/check-in', { method: 'POST', body: { status, ...opts } })
-      toast.success(status === 'present' ? 'Absen tercatat · kamu masuk kota hari ini' : 'Izin tercatat')
+      await api('/attendance/check-in', { method: 'POST', body })
+      toast.success(okText)
       onDone()
       return true
     } catch (err) {
@@ -89,12 +322,48 @@ export function useCheckIn(onDone: () => void) {
       setBusy(false)
     }
   }
-  return { busy, hadir: () => send('present'), izin: (day: string, note: string) => send('excused', { day, note }) }
+
+  return {
+    busy,
+    hadirOpen,
+    izinOpen,
+    openHadir: () => setHadirOpen(true),
+    openIzin: () => setIzinOpen(true),
+    closeHadir: () => setHadirOpen(false),
+    closeIzin: () => setIzinOpen(false),
+    sendHadir: async (p: PreparedPhoto) => {
+      if (await send({ status: 'present', photo: p.photo, thumb: p.thumb }, 'Absen tercatat · kamu masuk kota hari ini')) setHadirOpen(false)
+    },
+    sendIzin: async (day: string, note: string) => {
+      if (await send({ status: 'excused', day, note }, 'Izin tercatat')) setIzinOpen(false)
+    },
+  }
+}
+export type CheckInCtl = ReturnType<typeof useCheckIn>
+
+/** Dialog foto (absen hadir) dan dialog izin untuk satu `useCheckIn`. */
+export function CheckInDialogs({ ctl, today, mine }: { ctl: CheckInCtl; today: string; mine: AttendanceMine | null }) {
+  return (
+    <>
+      <PhotoDialog open={ctl.hadirOpen} busy={ctl.busy} onSubmit={(p) => void ctl.sendHadir(p)} onClose={ctl.closeHadir} />
+      <IzinDialog
+        open={ctl.izinOpen}
+        title="Ajukan izin"
+        description="Tulis alasan kamu tidak bisa masuk kota. Keterangan wajib diisi dan bisa dilihat staff. Bisa juga untuk hari lain (sampai 14 hari ke depan)."
+        today={today}
+        initialDay={today}
+        initialNote={mine?.status === 'excused' ? (mine.note ?? '') : ''}
+        busy={ctl.busy}
+        onSubmit={(day, note) => void ctl.sendIzin(day, note)}
+        onClose={ctl.closeIzin}
+      />
+    </>
+  )
 }
 
 /**
  * Dialog izin dengan keterangan wajib. Dengan `today` diisi, ada pilihan tanggal (hari ini sampai 14 hari ke depan);
- * tanpa itu, tanggalnya tetap `fixedDay` (dipakai staff yang mencatat izin untuk seseorang di tanggal terpilih).
+ * tanpa itu, tanggalnya tetap `initialDay` (dipakai staff yang mencatat izin untuk seseorang di tanggal terpilih).
  */
 export function IzinDialog({
   open,
@@ -167,8 +436,7 @@ export function IzinDialog({
 // Gagal dimuat = kartu tidak tampil; dashboard lainnya tidak terganggu.
 export function AttendanceCard() {
   const { data, reload } = useAsync(() => api<MyAttendance>('/attendance/me'), [])
-  const { busy, hadir, izin } = useCheckIn(reload)
-  const [izinOpen, setIzinOpen] = useState(false)
+  const ctl = useCheckIn(reload)
   if (!data) return null
   const { today, summary, days } = data
   const mine = today.mine
@@ -186,6 +454,7 @@ export function AttendanceCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
+          {mine?.has_photo ? <PhotoThumb id={mine.id} title="Foto absenmu hari ini" subtitle={formatDayLong(today.day)} className="size-10" /> : null}
           {mine ? (
             <>
               <ToneBadge tone={statusTone[mine.status]}>{mine.status === 'present' ? 'Masuk kota' : 'Izin'}</ToneBadge>
@@ -200,11 +469,11 @@ export function AttendanceCard() {
           {mine?.by_staff ? null : (
             <span className="ml-auto flex gap-2">
               {mine?.status !== 'present' ? (
-                <Button size="sm" disabled={busy} onClick={() => void hadir()}>
-                  {busy ? <Loader2 className="animate-spin" /> : <Check />} Absen hadir
+                <Button size="sm" disabled={ctl.busy} onClick={ctl.openHadir}>
+                  <Camera /> Absen hadir
                 </Button>
               ) : null}
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => setIzinOpen(true)}>
+              <Button size="sm" variant="outline" disabled={ctl.busy} onClick={ctl.openIzin}>
                 Izin
               </Button>
             </span>
@@ -217,61 +486,7 @@ export function AttendanceCard() {
           {summary.present} hadir · {summary.excused} izin · {summary.absent} tidak hadir
         </p>
       </CardContent>
-      <IzinDialog
-        open={izinOpen}
-        title="Ajukan izin"
-        description="Tulis alasan kamu tidak bisa masuk kota. Keterangan wajib diisi dan bisa dilihat staff."
-        today={today.day}
-        initialDay={today.day}
-        initialNote={mine?.status === 'excused' ? (mine.note ?? '') : ''}
-        busy={busy}
-        onSubmit={(day, note) => void izin(day, note).then((ok) => ok && setIzinOpen(false))}
-        onClose={() => setIzinOpen(false)}
-      />
+      <CheckInDialogs ctl={ctl} today={today.day} mine={mine} />
     </Card>
-  )
-}
-
-const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
-
-/** Kalender kecil berwarna (minggu mulai Senin): hadir, izin, tidak hadir, atau belum ada data. */
-export function DayGrid({ days, today }: { days: { day: string; status: AttendanceDayStatus }[]; today: string }) {
-  const ordered = [...days].reverse() // dari server: terbaru dulu
-  if (ordered.length === 0) return null
-  const lead = (new Date(`${ordered[0].day}T00:00:00Z`).getUTCDay() + 6) % 7 // kolom Senin = 0
-  return (
-    <div>
-      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground">
-        {WEEKDAYS.map((w) => (
-          <span key={w}>{w}</span>
-        ))}
-      </div>
-      <ol className="grid grid-cols-7 gap-1" aria-label="Kalender kehadiran">
-        {Array.from({ length: lead }, (_, i) => (
-          <li key={`kosong-${i}`} aria-hidden />
-        ))}
-        {ordered.map((d) => (
-          <li
-            key={d.day}
-            title={`${formatDayShort(d.day)} · ${d.status ? statusLabel[d.status] : 'belum ada data'}`}
-            className={cn(
-              'flex aspect-square items-center justify-center rounded-md text-xs tabular-nums ring-1',
-              cellClass[d.status ?? 'none'],
-              d.day === today && 'ring-2 ring-primary',
-            )}
-          >
-            {Number(d.day.slice(8))}
-          </li>
-        ))}
-      </ol>
-      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground" aria-label="Keterangan warna">
-        {(['present', 'excused', 'absent', 'none'] as const).map((k) => (
-          <li key={k} className="flex items-center gap-1.5">
-            <span className={cn('size-3 rounded-sm ring-1', cellClass[k])} aria-hidden />
-            {k === 'none' ? 'Belum ada data' : statusLabel[k]}
-          </li>
-        ))}
-      </ul>
-    </div>
   )
 }

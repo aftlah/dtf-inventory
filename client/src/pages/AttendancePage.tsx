@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, Loader2, Search, Trash2 } from 'lucide-react'
+import { Camera, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, Loader2, Search, Trash2, Check } from 'lucide-react'
 import {
   EmptyState,
   ErrorState,
@@ -9,7 +9,16 @@ import {
   PageStack,
   ToneBadge,
 } from '@/components/common'
-import { DayGrid, DayStrip, IzinDialog, statusLabel, statusTone, useCheckIn } from '@/components/attendance'
+import {
+  CheckInDialogs,
+  DayGrid,
+  DayStrip,
+  IzinDialog,
+  PhotoThumb,
+  statusLabel,
+  statusTone,
+  useCheckIn,
+} from '@/components/attendance'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,22 +30,102 @@ import type { AttendanceDay, AttendanceDays, AttendancePerson, AttendanceStatus,
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
 
+/* ---------- Bagian yang dipakai tampilan "Absen saya" dan tampilan fokus ---------- */
+
+function StatTiles({ summary, className }: { summary: MyAttendance['summary']; className: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={className}>
+        <p className="text-xs text-muted-foreground">Tingkat kehadiran</p>
+        <p className="text-2xl font-bold tabular-nums">{summary.percent === null ? '—' : `${summary.percent}%`}</p>
+      </div>
+      <div className={className}>
+        <p className="text-xs text-muted-foreground">Hadir</p>
+        <p className="text-2xl font-bold text-emerald-300 tabular-nums">{summary.present}</p>
+      </div>
+      <div className={className}>
+        <p className="text-xs text-muted-foreground">Izin</p>
+        <p className="text-2xl font-bold text-amber-300 tabular-nums">{summary.excused}</p>
+      </div>
+      <div className={className}>
+        <p className="text-xs text-muted-foreground">Tidak hadir</p>
+        <p className={cn('text-2xl font-bold tabular-nums', summary.absent > 0 && 'text-destructive')}>{summary.absent}</p>
+      </div>
+    </div>
+  )
+}
+
+/** Catatan terbaru: hanya hari yang punya status (hadir, izin, tidak hadir), dengan foto absennya bila ada. */
+function RecordsList({ days }: { days: MyAttendance['days'] }) {
+  const [showAll, setShowAll] = useState(false)
+  const recorded = days.filter((d) => d.status !== null)
+  const listed = showAll ? recorded : recorded.slice(0, 6)
+  return (
+    <div className="min-w-0">
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">Catatan terbaru</p>
+      {recorded.length === 0 ? (
+        <p className="rounded-lg bg-muted/20 px-3 py-8 text-center text-sm text-muted-foreground">Belum ada catatan kehadiran</p>
+      ) : (
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+          {listed.map((d) => (
+            <li key={d.day} className="flex items-center gap-3 px-3 py-2 text-sm">
+              {d.has_photo && d.id ? <PhotoThumb id={d.id} title={formatDayLong(d.day)} subtitle="Foto absenmu" className="size-9" /> : null}
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium">{formatDayLong(d.day)}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {d.note ? `${d.note} · ` : ''}
+                  {d.status === 'present' && d.at ? `${formatClock(d.at)} WIB` : ''}
+                  {d.by_staff ? ' · dicatat staff' : ''}
+                </span>
+              </span>
+              {d.status ? <ToneBadge tone={statusTone[d.status]}>{statusLabel[d.status]}</ToneBadge> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {recorded.length > 6 ? (
+        <Button size="sm" variant="ghost" className="mt-1" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${recorded.length})`}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function UpcomingCard({ upcoming }: { upcoming: MyAttendance['upcoming'] }) {
+  if (upcoming.length === 0) return null
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Izin terjadwal</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y divide-border/60">
+          {upcoming.map((u) => (
+            <li key={u.day} className="flex items-center justify-between gap-2 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="block font-medium">{formatDayLong(u.day)}</span>
+                {u.note ? <span className="block truncate text-xs text-muted-foreground">{u.note}</span> : null}
+              </span>
+              <ToneBadge tone="warn">Izin</ToneBadge>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
 /* ---------- Absen saya ---------- */
 
 function MyAttendanceView() {
   const { data, error, loading, reload } = useAsync(() => api<MyAttendance>('/attendance/me'), [])
-  const { busy, hadir, izin } = useCheckIn(reload)
-  const [izinOpen, setIzinOpen] = useState(false)
-  const [showAll, setShowAll] = useState(false)
+  const ctl = useCheckIn(reload)
 
   if (error) return <ErrorState message={error} onRetry={reload} />
   if (!data) return <LoadingState />
   const { today, summary, days, upcoming } = data
   const mine = today.mine
-
-  // Riwayat singkat: hanya hari yang punya status (hadir, izin, tidak hadir); hari kosong tidak perlu dibaris-barisi.
-  const recorded = days.filter((d) => d.status !== null)
-  const listed = showAll ? recorded : recorded.slice(0, 6)
 
   const hero = mine
     ? mine.status === 'present'
@@ -45,16 +134,20 @@ function MyAttendanceView() {
     : { Icon: Circle, tone: 'bg-muted/60 text-muted-foreground', title: 'Kamu belum absen hari ini' }
   const detail = mine
     ? `${mine.note ? `${mine.note} · ` : ''}${mine.by_staff ? 'dicatat staff' : `dicatat ${formatClock(mine.at)} WIB`}`
-    : 'Tekan tombol di samping saat kamu masuk kota.'
+    : 'Tekan Absen hadir (dengan foto) saat kamu masuk kota.'
 
   return (
     <div className={cn('flex flex-col gap-4', loading && 'opacity-60')}>
       <Card>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <span className={cn('flex size-14 shrink-0 items-center justify-center rounded-2xl', hero.tone)}>
-              <hero.Icon className="size-7" aria-hidden />
-            </span>
+            {mine?.has_photo ? (
+              <PhotoThumb id={mine.id} title="Foto absenmu hari ini" subtitle={formatDayLong(today.day)} className="size-14 rounded-2xl" />
+            ) : (
+              <span className={cn('flex size-14 shrink-0 items-center justify-center rounded-2xl', hero.tone)}>
+                <hero.Icon className="size-7" aria-hidden />
+              </span>
+            )}
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{formatDayLong(today.day)}</p>
               <p className="text-lg leading-tight font-semibold">{hero.title}</p>
@@ -66,11 +159,11 @@ function MyAttendanceView() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {mine?.status !== 'present' ? (
-                <Button size="lg" className="h-10 px-4" disabled={busy} onClick={() => void hadir()}>
-                  {busy ? <Loader2 className="animate-spin" /> : <Check />} Absen hadir
+                <Button size="lg" className="h-10 px-4" disabled={ctl.busy} onClick={ctl.openHadir}>
+                  <Camera /> Absen hadir
                 </Button>
               ) : null}
-              <Button size="lg" variant="outline" className="h-10 px-4" disabled={busy} onClick={() => setIzinOpen(true)}>
+              <Button size="lg" variant="outline" className="h-10 px-4" disabled={ctl.busy} onClick={ctl.openIzin}>
                 <CalendarPlus /> {mine?.status === 'excused' ? 'Ubah izin' : 'Izin'}
               </Button>
             </div>
@@ -78,80 +171,17 @@ function MyAttendanceView() {
         </CardContent>
       </Card>
 
-      {upcoming.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Izin terjadwal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y divide-border/60">
-              {upcoming.map((u) => (
-                <li key={u.day} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="min-w-0">
-                    <span className="block font-medium">{formatDayLong(u.day)}</span>
-                    {u.note ? <span className="block truncate text-xs text-muted-foreground">{u.note}</span> : null}
-                  </span>
-                  <ToneBadge tone="warn">Izin</ToneBadge>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
+      <UpcomingCard upcoming={upcoming} />
 
       <Card>
         <CardHeader>
           <CardTitle>Kehadiran {summary.window_days} hari terakhir</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
-              <p className="text-xs text-muted-foreground">Tingkat kehadiran</p>
-              <p className="text-2xl font-bold tabular-nums">{summary.percent === null ? '—' : `${summary.percent}%`}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
-              <p className="text-xs text-muted-foreground">Hadir</p>
-              <p className="text-2xl font-bold text-emerald-300 tabular-nums">{summary.present}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
-              <p className="text-xs text-muted-foreground">Izin</p>
-              <p className="text-2xl font-bold text-amber-300 tabular-nums">{summary.excused}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
-              <p className="text-xs text-muted-foreground">Tidak hadir</p>
-              <p className={cn('text-2xl font-bold tabular-nums', summary.absent > 0 && 'text-destructive')}>{summary.absent}</p>
-            </div>
-          </div>
-
+          <StatTiles summary={summary} className="rounded-xl border border-border bg-muted/20 px-4 py-3" />
           <div className="grid gap-6 md:grid-cols-[minmax(0,22rem)_1fr]">
             <DayGrid days={days} today={today.day} />
-            <div className="min-w-0">
-              <p className="mb-2 text-xs font-semibold text-muted-foreground">Catatan terbaru</p>
-              {recorded.length === 0 ? (
-                <p className="rounded-lg bg-muted/20 px-3 py-6 text-center text-sm text-muted-foreground">Belum ada catatan kehadiran</p>
-              ) : (
-                <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
-                  {listed.map((d) => (
-                    <li key={d.day} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                      <span className="min-w-0">
-                        <span className="block font-medium">{formatDayLong(d.day)}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {d.note ? `${d.note} · ` : ''}
-                          {d.status === 'present' && d.at ? `${formatClock(d.at)} WIB` : ''}
-                          {d.by_staff ? ' · dicatat staff' : ''}
-                        </span>
-                      </span>
-                      {d.status ? <ToneBadge tone={statusTone[d.status]}>{statusLabel[d.status]}</ToneBadge> : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {recorded.length > 6 ? (
-                <Button size="sm" variant="ghost" className="mt-1" onClick={() => setShowAll((v) => !v)}>
-                  {showAll ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${recorded.length})`}
-                </Button>
-              ) : null}
-            </div>
+            <RecordsList days={days} />
           </div>
           <p className="text-[11px] text-muted-foreground">
             Izin tidak dihitung sebagai tidak hadir. Hari yang sudah lewat tanpa absen dihitung tidak hadir, sejak absensi mulai dipakai.
@@ -159,17 +189,87 @@ function MyAttendanceView() {
         </CardContent>
       </Card>
 
-      <IzinDialog
-        open={izinOpen}
-        title="Ajukan izin"
-        description="Tulis alasan kamu tidak bisa masuk kota. Keterangan wajib diisi dan bisa dilihat staff. Bisa juga untuk hari lain (sampai 14 hari ke depan)."
-        today={today.day}
-        initialDay={today.day}
-        initialNote={mine?.status === 'excused' ? (mine.note ?? '') : ''}
-        busy={busy}
-        onSubmit={(day, note) => void izin(day, note).then((ok) => ok && setIzinOpen(false))}
-        onClose={() => setIzinOpen(false)}
-      />
+      <CheckInDialogs ctl={ctl} today={today.day} mine={mine} />
+    </div>
+  )
+}
+
+/* ---------- Tampilan fokus: akun yang hanya boleh absen (Holly, Hangaround) ---------- */
+
+// Satu-satunya halaman mereka, jadi bukan tampilan "dashboard": satu kolom di tengah, kartu hari ini besar di atas,
+// lalu ringkasan, kalender, dan catatan terbaru. Kerangka (logo + menu akun) ada di AttendanceLayout.
+function FocusedAttendanceView() {
+  const { user } = useAuth()
+  const { data, error, loading, reload } = useAsync(() => api<MyAttendance>('/attendance/me'), [])
+  const ctl = useCheckIn(reload)
+
+  if (error) return <ErrorState message={error} onRetry={reload} />
+  if (!data) return <LoadingState />
+  const { today, summary, days, upcoming } = data
+  const mine = today.mine
+
+  const theme = !mine
+    ? { Icon: Circle, box: 'border-primary/40 bg-primary/10', icon: 'bg-primary/20 text-primary', title: 'Sudah masuk kota hari ini?' }
+    : mine.status === 'present'
+      ? { Icon: CheckCircle2, box: 'border-emerald-500/40 bg-emerald-500/10', icon: 'bg-emerald-500/20 text-emerald-300', title: 'Kamu sudah masuk kota hari ini' }
+      : { Icon: Clock, box: 'border-amber-500/40 bg-amber-500/10', icon: 'bg-amber-500/20 text-amber-300', title: 'Kamu izin hari ini' }
+  const detail = mine
+    ? `${mine.note ? `${mine.note} · ` : ''}${mine.by_staff ? 'dicatat staff' : `dicatat ${formatClock(mine.at)} WIB`}`
+    : 'Tekan Absen hadir dan lampirkan foto saat kamu masuk kota, atau ajukan izin kalau tidak bisa.'
+
+  return (
+    <div className={cn('flex flex-col gap-5', loading && 'opacity-60')}>
+      <section className={cn('rounded-3xl border p-6 text-center sm:p-8', theme.box)}>
+        <p className="text-sm text-muted-foreground">Halo, {user?.name}</p>
+        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{formatDayLong(today.day)}</h1>
+        {mine?.has_photo ? (
+          <div className="mx-auto mt-5 w-fit">
+            <PhotoThumb id={mine.id} title="Foto absenmu hari ini" subtitle={formatDayLong(today.day)} className="size-24 rounded-full ring-2 ring-emerald-500/50" />
+          </div>
+        ) : (
+          <span className={cn('mx-auto mt-5 flex size-20 items-center justify-center rounded-full', theme.icon)}>
+            <theme.Icon className="size-10" aria-hidden />
+          </span>
+        )}
+        <p className="mt-4 text-xl font-semibold sm:text-2xl">{theme.title}</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{detail}</p>
+        {mine?.by_staff ? (
+          <p className="mx-auto mt-5 max-w-sm text-xs text-muted-foreground">Dicatat staff, jadi tidak bisa kamu ubah sendiri.</p>
+        ) : (
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            {mine?.status !== 'present' ? (
+              <Button size="lg" className="h-12 px-8 text-base" disabled={ctl.busy} onClick={ctl.openHadir}>
+                <Camera /> Absen hadir
+              </Button>
+            ) : null}
+            <Button size="lg" variant="outline" className="h-12 px-8 text-base" disabled={ctl.busy} onClick={ctl.openIzin}>
+              <CalendarPlus /> {mine?.status === 'excused' ? 'Ubah izin' : 'Izin'}
+            </Button>
+          </div>
+        )}
+        <div className="mx-auto mt-6 max-w-md">
+          <p className="mb-1.5 text-left text-xs text-muted-foreground">7 hari terakhir</p>
+          <DayStrip days={days.slice(0, 7)} today={today.day} />
+        </div>
+      </section>
+
+      <StatTiles summary={summary} className="rounded-xl border border-border bg-card px-4 py-3" />
+      <UpcomingCard upcoming={upcoming} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Kehadiran {summary.window_days} hari terakhir</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 sm:grid-cols-[minmax(0,19rem)_1fr]">
+          <DayGrid days={days} today={today.day} />
+          <RecordsList days={days} />
+        </CardContent>
+      </Card>
+      <p className="px-1 text-center text-[11px] text-muted-foreground">
+        Izin tidak dihitung sebagai tidak hadir. Hari yang sudah lewat tanpa absen dihitung tidak hadir, sejak absensi mulai dipakai.
+      </p>
+
+      <CheckInDialogs ctl={ctl} today={today.day} mine={mine} />
     </div>
   )
 }
@@ -249,7 +349,10 @@ function DayRosterView() {
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">Angka hijau = jumlah yang masuk kota pada hari itu.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Angka hijau = jumlah yang masuk kota pada hari itu. Foto absen disimpan {overview.data.photo_days} hari, lalu dihapus otomatis
+            (catatan hadirnya tetap).
+          </p>
         </CardContent>
       </Card>
 
@@ -286,8 +389,15 @@ function DayRosterView() {
         <ul className={cn('divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-card', roster.loading && 'opacity-60')}>
           {people.map((p) => (
             <li key={p.user_id} className="flex flex-col gap-2 px-3 py-2.5 text-sm sm:px-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+              <div className="flex items-start gap-3">
+                {p.has_photo && p.record_id ? (
+                  <PhotoThumb
+                    id={p.record_id}
+                    title={p.name}
+                    subtitle={`${formatDayLong(data.day)}${p.checked_at ? ` · ${formatClock(p.checked_at)} WIB` : ''}`}
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{p.name}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     @{p.username} · {p.role}
@@ -308,6 +418,7 @@ function DayRosterView() {
                   {p.note ? `Keterangan: ${p.note} · ` : ''}
                   {p.marked_by_staff ? `Dicatat staff (${p.marked_by_name})` : 'Mengisi sendiri'}
                   {p.checked_at ? ` · ${formatClock(p.checked_at)} WIB` : ''}
+                  {p.status === 'present' && !p.has_photo ? ' · tanpa foto' : ''}
                 </p>
               ) : null}
               <div className="flex flex-wrap gap-1.5">
@@ -344,157 +455,6 @@ function DayRosterView() {
   )
 }
 
-/* ---------- Tampilan fokus: akun yang hanya boleh absen (Holly, Hangaround) ---------- */
-
-// Satu-satunya halaman mereka, jadi bukan tampilan "dashboard": satu kolom di tengah, kartu hari ini besar di atas,
-// lalu ringkasan, kalender, dan catatan terbaru. Kerangka (logo + menu akun) ada di AttendanceLayout.
-function FocusedAttendanceView() {
-  const { user } = useAuth()
-  const { data, error, loading, reload } = useAsync(() => api<MyAttendance>('/attendance/me'), [])
-  const { busy, hadir, izin } = useCheckIn(reload)
-  const [izinOpen, setIzinOpen] = useState(false)
-  const [showAll, setShowAll] = useState(false)
-
-  if (error) return <ErrorState message={error} onRetry={reload} />
-  if (!data) return <LoadingState />
-  const { today, summary, days, upcoming } = data
-  const mine = today.mine
-  const recorded = days.filter((d) => d.status !== null)
-  const listed = showAll ? recorded : recorded.slice(0, 6)
-
-  const theme = !mine
-    ? { Icon: Circle, box: 'border-primary/40 bg-primary/10', icon: 'bg-primary/20 text-primary', title: 'Sudah masuk kota hari ini?' }
-    : mine.status === 'present'
-      ? { Icon: CheckCircle2, box: 'border-emerald-500/40 bg-emerald-500/10', icon: 'bg-emerald-500/20 text-emerald-300', title: 'Kamu sudah masuk kota hari ini' }
-      : { Icon: Clock, box: 'border-amber-500/40 bg-amber-500/10', icon: 'bg-amber-500/20 text-amber-300', title: 'Kamu izin hari ini' }
-  const detail = mine
-    ? `${mine.note ? `${mine.note} · ` : ''}${mine.by_staff ? 'dicatat staff' : `dicatat ${formatClock(mine.at)} WIB`}`
-    : 'Tekan Absen hadir saat kamu masuk kota, atau ajukan izin kalau tidak bisa.'
-
-  return (
-    <div className={cn('flex flex-col gap-5', loading && 'opacity-60')}>
-      <section className={cn('rounded-3xl border p-6 text-center sm:p-8', theme.box)}>
-        <p className="text-sm text-muted-foreground">Halo, {user?.name}</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{formatDayLong(today.day)}</h1>
-        <span className={cn('mx-auto mt-5 flex size-20 items-center justify-center rounded-full', theme.icon)}>
-          <theme.Icon className="size-10" aria-hidden />
-        </span>
-        <p className="mt-4 text-xl font-semibold sm:text-2xl">{theme.title}</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{detail}</p>
-        {mine?.by_staff ? (
-          <p className="mx-auto mt-5 max-w-sm text-xs text-muted-foreground">Dicatat staff, jadi tidak bisa kamu ubah sendiri.</p>
-        ) : (
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-            {mine?.status !== 'present' ? (
-              <Button size="lg" className="h-12 px-8 text-base" disabled={busy} onClick={() => void hadir()}>
-                {busy ? <Loader2 className="animate-spin" /> : <Check />} Absen hadir
-              </Button>
-            ) : null}
-            <Button size="lg" variant="outline" className="h-12 px-8 text-base" disabled={busy} onClick={() => setIzinOpen(true)}>
-              <CalendarPlus /> {mine?.status === 'excused' ? 'Ubah izin' : 'Izin'}
-            </Button>
-          </div>
-        )}
-        <div className="mx-auto mt-6 max-w-md">
-          <p className="mb-1.5 text-left text-xs text-muted-foreground">7 hari terakhir</p>
-          <DayStrip days={days.slice(0, 7)} today={today.day} />
-        </div>
-      </section>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">Tingkat kehadiran</p>
-          <p className="text-2xl font-bold tabular-nums">{summary.percent === null ? '—' : `${summary.percent}%`}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">Hadir</p>
-          <p className="text-2xl font-bold text-emerald-300 tabular-nums">{summary.present}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">Izin</p>
-          <p className="text-2xl font-bold text-amber-300 tabular-nums">{summary.excused}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">Tidak hadir</p>
-          <p className={cn('text-2xl font-bold tabular-nums', summary.absent > 0 && 'text-destructive')}>{summary.absent}</p>
-        </div>
-      </div>
-
-      {upcoming.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Izin terjadwal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y divide-border/60">
-              {upcoming.map((u) => (
-                <li key={u.day} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="min-w-0">
-                    <span className="block font-medium">{formatDayLong(u.day)}</span>
-                    {u.note ? <span className="block truncate text-xs text-muted-foreground">{u.note}</span> : null}
-                  </span>
-                  <ToneBadge tone="warn">Izin</ToneBadge>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Kehadiran {summary.window_days} hari terakhir</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-6 sm:grid-cols-[minmax(0,19rem)_1fr]">
-          <DayGrid days={days} today={today.day} />
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold text-muted-foreground">Catatan terbaru</p>
-            {recorded.length === 0 ? (
-              <p className="rounded-lg bg-muted/20 px-3 py-8 text-center text-sm text-muted-foreground">Belum ada catatan kehadiran</p>
-            ) : (
-              <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
-                {listed.map((d) => (
-                  <li key={d.day} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                    <span className="min-w-0">
-                      <span className="block font-medium">{formatDayLong(d.day)}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {d.note ? `${d.note} · ` : ''}
-                        {d.status === 'present' && d.at ? `${formatClock(d.at)} WIB` : ''}
-                        {d.by_staff ? ' · dicatat staff' : ''}
-                      </span>
-                    </span>
-                    {d.status ? <ToneBadge tone={statusTone[d.status]}>{statusLabel[d.status]}</ToneBadge> : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {recorded.length > 6 ? (
-              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setShowAll((v) => !v)}>
-                {showAll ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${recorded.length})`}
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-      <p className="px-1 text-center text-[11px] text-muted-foreground">
-        Izin tidak dihitung sebagai tidak hadir. Hari yang sudah lewat tanpa absen dihitung tidak hadir, sejak absensi mulai dipakai.
-      </p>
-
-      <IzinDialog
-        open={izinOpen}
-        title="Ajukan izin"
-        description="Tulis alasan kamu tidak bisa masuk kota. Keterangan wajib diisi dan bisa dilihat staff. Bisa juga untuk hari lain (sampai 14 hari ke depan)."
-        today={today.day}
-        initialDay={today.day}
-        initialNote={mine?.status === 'excused' ? (mine.note ?? '') : ''}
-        busy={busy}
-        onSubmit={(day, note) => void izin(day, note).then((ok) => ok && setIzinOpen(false))}
-        onClose={() => setIzinOpen(false)}
-      />
-    </div>
-  )
-}
-
 /* ---------- Halaman ---------- */
 
 export function AttendancePage() {
@@ -510,8 +470,8 @@ export function AttendancePage() {
         title="Absensi"
         subtitle={
           tab === 'staff'
-            ? 'Lihat siapa saja yang masuk kota di hari tertentu, dan koreksi bila perlu.'
-            : 'Absen setiap hari saat kamu masuk kota, atau ajukan izin dengan keterangan.'
+            ? 'Lihat siapa saja yang masuk kota di hari tertentu (lengkap dengan foto absennya), dan koreksi bila perlu.'
+            : 'Absen setiap hari saat kamu masuk kota dengan melampirkan foto, atau ajukan izin dengan keterangan.'
         }
       />
       {isStaff ? (

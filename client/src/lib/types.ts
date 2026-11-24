@@ -234,14 +234,14 @@ export type MemberDashboard = {
 
 export type AttendanceStatus = 'present' | 'excused'
 /** Catatan kehadiran seseorang pada satu hari. */
-export type AttendanceMine = { status: AttendanceStatus; note: string | null; by_staff: boolean; at: string }
+export type AttendanceMine = { id: number; status: AttendanceStatus; note: string | null; by_staff: boolean; at: string; has_photo: boolean }
 /** Status satu hari: 'absent' = hari lewat tanpa catatan; null = belum ada (hari ini/ke depan, atau sebelum akun dibuat). */
 export type AttendanceDayStatus = AttendanceStatus | 'absent' | null
 
 export type MyAttendance = {
   today: { day: string; mine: AttendanceMine | null }
   summary: { present: number; excused: number; absent: number; total: number; percent: number | null; window_days: number }
-  days: { day: string; status: AttendanceDayStatus; note: string | null; by_staff: boolean; at: string | null }[]
+  days: { day: string; id: number | null; status: AttendanceDayStatus; note: string | null; by_staff: boolean; at: string | null; has_photo: boolean }[]
   upcoming: { day: string; note: string | null; by_staff: boolean }[]
 }
 
@@ -249,6 +249,8 @@ export type MyAttendance = {
 export type AttendanceDays = {
   today: string
   roster_size: number
+  /** Foto absen disimpan sekian hari, lalu dihapus otomatis. */
+  photo_days: number
   days: { day: string; present: number; excused: number }[]
 }
 
@@ -257,6 +259,9 @@ export type AttendancePerson = {
   name: string
   username: string
   role: Role
+  /** Id catatan (untuk mengambil foto); null = belum ada catatan. */
+  record_id: number | null
+  has_photo: boolean
   status: AttendanceStatus | null
   note: string | null
   marked_by_name: string | null

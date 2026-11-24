@@ -30,6 +30,8 @@ export const COLUMNS = [
   ['order_items', 'handed_by_name', 'VARCHAR(100) NULL'],
   ['items', 'max_buy_member', 'INT UNSIGNED NULL'],
   ['items', 'max_buy_highrank', 'INT UNSIGNED NULL'],
+  ['attendance_daily', 'photo', 'MEDIUMBLOB NULL'],
+  ['attendance_daily', 'photo_thumb', 'MEDIUMBLOB NULL'],
 ]
 
 export const TABLES = [

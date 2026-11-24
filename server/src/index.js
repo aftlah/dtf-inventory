@@ -7,7 +7,7 @@ import { pool } from './db.js'
 import { describeError } from './errors.js'
 import { schemaProblems } from './schema-check.js'
 import { wrap } from './util.js'
-import { attendanceRouter } from './routes/attendance.js'
+import { attendanceRouter, purgeOldPhotos } from './routes/attendance.js'
 import { authRouter } from './routes/auth.js'
 import { cashRouter } from './routes/cash.js'
 import { catalogRouter } from './routes/catalog.js'
@@ -27,6 +27,8 @@ if (process.env.TRUST_PROXY) {
   app.set('trust proxy', Number.isNaN(Number(v)) ? v : Number(v))
 }
 app.use(securityHeaders)
+// Absen hadir mengirim foto (base64, hingga ~1 MB): batas JSON khusus untuk rute itu, dipasang SEBELUM batas umum 100 KB.
+app.use('/api/attendance/check-in', express.json({ limit: '1.5mb' }))
 app.use(express.json({ limit: '100kb' }))
 
 app.use('/api', noStore)
@@ -108,6 +110,11 @@ async function startupChecks() {
         'Periksa DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD di environment, dan pastikan MySQL menyala.',
     )
     return
+  }
+  try {
+    await purgeOldPhotos()
+  } catch {
+    // tabel absensi mungkin belum ada (db-init belum dijalankan); pemeriksaan skema di bawah melaporkannya
   }
   try {
     const problems = await schemaProblems()

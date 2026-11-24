@@ -75,3 +75,16 @@ export async function api<T = unknown>(
   }
   return data as T
 }
+
+/** Ambil berkas yang dilindungi login (mis. foto absen) sebagai Blob; tag <img> biasa tidak bisa mengirim token. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const token = getToken()
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  } catch {
+    throw new ApiError(0, 'Tidak bisa terhubung ke server')
+  }
+  if (!res.ok) throw new ApiError(res.status, res.status === 404 ? 'Foto tidak ditemukan' : 'Gagal memuat foto')
+  return res.blob()
+}
