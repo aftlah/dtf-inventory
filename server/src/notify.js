@@ -49,10 +49,32 @@ export function sendDiscord(db, payload) {
 
 /** Log absensi ke channel absensi (ATTENDANCE_DISCORD_WEBHOOK_URL). Bentuk payload sama dengan sendDiscord. */
 export function sendAttendanceDiscord(db, payload) {
-  deliver(ATTENDANCE_URL, 'DTF Inventory · Absensi', db, payload)
+  deliver(ATTENDANCE_URL, 'DTF Inventory · Absensi', db, payload, true)
 }
 
-function deliver(url, footerText, db, { kind, title, body, description, link, fields }) {
+// Hari (WIB) terakhir yang sudah diberi pemisah di channel absensi. Disimpan di memori:
+// setelah server restart, pemisah hari itu bisa muncul sekali lagi (tidak berbahaya).
+let lastDividerDay = ''
+const wibDayNow = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+
+/** Pesan pembatas hari: dikirim sebelum log pertama pada hari baru supaya channel mudah dibaca. */
+function dayDivider(footerText) {
+  const label = new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date())
+  return {
+    title: `📅 ${label}`,
+    description: '━━━━━━━━━━━━━━━━━━━━\nAbsensi hari ini dimulai di bawah garis ini.',
+    color: 0x64748b,
+    footer: { text: footerText },
+  }
+}
+
+function deliver(url, footerText, db, { kind, title, body, description, link, fields }, withDayDivider = false) {
   if (!url) return
   const style = STYLE[kind] ?? DEFAULT_STYLE
   const embed = {
@@ -73,12 +95,26 @@ function deliver(url, footerText, db, { kind, title, body, description, link, fi
   // Judul bisa diklik bila APP_URL diisi (mis. https://dtf-inventory.aftlah.my.id).
   if (APP_URL && link) embed.url = APP_URL.replace(/\/+$/, '') + link
 
-  const run = () =>
+  const post = (e) =>
     fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),
-    }).catch((e) => console.error('Discord:', e.message))
+      body: JSON.stringify({ embeds: [e], allowed_mentions: { parse: [] } }),
+    })
+  const run = async () => {
+    try {
+      if (withDayDivider) {
+        const today = wibDayNow()
+        if (today !== lastDividerDay) {
+          lastDividerDay = today
+          await post(dayDivider(footerText)) // tunggu, agar urutan di channel: pemisah dulu, baru log
+        }
+      }
+      await post(embed)
+    } catch (e) {
+      console.error('Discord:', e.message)
+    }
+  }
   // Dalam transaksi, kirim hanya bila transaksi berhasil di-commit.
   if (db?.afterCommit) db.afterCommit(run)
   else void run()
