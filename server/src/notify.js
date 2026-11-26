@@ -3,6 +3,8 @@ import { TOTAL_STOCK } from './stock.js'
 
 // Notifikasi dalam aplikasi + (opsional) Discord. Set DISCORD_WEBHOOK_URL untuk mengaktifkan Discord.
 const DISCORD_URL = process.env.DISCORD_WEBHOOK_URL ?? ''
+// Log absensi dikirim ke channel sendiri (bukan ke DISCORD_WEBHOOK_URL). Kosong = log absensi tidak dikirim.
+const ATTENDANCE_URL = process.env.ATTENDANCE_DISCORD_WEBHOOK_URL ?? ''
 const APP_URL = process.env.APP_URL ?? ''
 
 async function staffIds(db, exceptId) {
@@ -20,6 +22,10 @@ const STYLE = {
   request_reported: { icon: '📝', color: 0xf59e0b },
   low_stock: { icon: '⚠️', color: 0xef4444 },
   account_request: { icon: '👤', color: 0x8b5cf6 },
+  attendance_present: { icon: '✅', color: 0x10b981 },
+  attendance_excused: { icon: '📝', color: 0xf59e0b },
+  attendance_staff: { icon: '🛠️', color: 0x3b82f6 },
+  attendance_clear: { icon: '🗑️', color: 0x64748b },
 }
 const DEFAULT_STYLE = { icon: '🔔', color: 0x64748b }
 
@@ -37,13 +43,22 @@ export function summarizeItems(entries, max = 6) {
  * `db` boleh koneksi transaksi (kirim setelah commit) atau null/pool (kirim langsung).
  * Nama/teks dari pengguna ikut dikirim, jadi allowed_mentions dikosongkan agar @everyone/@role tidak aktif.
  */
-export function sendDiscord(db, { kind, title, body, description, link, fields }) {
-  if (!DISCORD_URL) return
+export function sendDiscord(db, payload) {
+  deliver(DISCORD_URL, 'DTF Inventory', db, payload)
+}
+
+/** Log absensi ke channel absensi (ATTENDANCE_DISCORD_WEBHOOK_URL). Bentuk payload sama dengan sendDiscord. */
+export function sendAttendanceDiscord(db, payload) {
+  deliver(ATTENDANCE_URL, 'DTF Inventory · Absensi', db, payload)
+}
+
+function deliver(url, footerText, db, { kind, title, body, description, link, fields }) {
+  if (!url) return
   const style = STYLE[kind] ?? DEFAULT_STYLE
   const embed = {
     title: `${style.icon} ${title}`.slice(0, 250),
     color: style.color,
-    footer: { text: 'DTF Inventory' },
+    footer: { text: footerText },
     timestamp: new Date().toISOString(),
   }
   // Deskripsi hanya bila diberikan eksplisit, atau bila tidak ada kolom (supaya isi kolom tidak diulang di deskripsi).
@@ -59,7 +74,7 @@ export function sendDiscord(db, { kind, title, body, description, link, fields }
   if (APP_URL && link) embed.url = APP_URL.replace(/\/+$/, '') + link
 
   const run = () =>
-    fetch(DISCORD_URL, {
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }),

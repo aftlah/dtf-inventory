@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool, query, withTx } from '../db.js'
 import { audit } from '../audit.js'
 import { isStaff, requireStaff } from '../auth.js'
+import { sendAttendanceDiscord } from '../notify.js'
 import { HttpError, str, wrap } from '../util.js'
 
 // Absensi harian. Semua akun mengisi absennya sendiri (hadir hari ini, atau izin untuk hari ini/ke depan);
@@ -25,6 +26,13 @@ const PURGE_EVERY_MS = 6 * 3600 * 1000
 
 const wibDay = (ms = Date.now()) => new Date(ms + 7 * 3600 * 1000).toISOString().slice(0, 10)
 const addDays = (ymd, n) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10)
+
+// Untuk pesan Discord (log absensi).
+const ROLE_LABEL = { admin: 'Admin', staff: 'Staff', member: 'Member', highrank: 'Highrank', holly: 'Holly', hangaround: 'Hangaround' }
+const fmtDay = (ymd) =>
+  new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${ymd}T00:00:00Z`))
+const fmtClock = () =>
+  `${new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date())} WIB`
 
 function parseDay(value, field = 'Tanggal') {
   const s = String(value ?? '')
@@ -107,7 +115,7 @@ attendanceRouter.post(
       throw new HttpError(400, `Izin hanya bisa diajukan maksimal ${MAX_AHEAD_DAYS} hari ke depan.`)
     await withTx(async (conn) => {
       const [[existing]] = await conn.query(
-        'SELECT status, marked_by_staff, (photo IS NOT NULL) AS has_photo FROM attendance_daily WHERE user_id = ? AND day = ? FOR UPDATE',
+        'SELECT status, note, marked_by_staff, (photo IS NOT NULL) AS has_photo FROM attendance_daily WHERE user_id = ? AND day = ? FOR UPDATE',
         [req.user.id, day],
       )
       if (existing?.marked_by_staff)
@@ -116,6 +124,32 @@ attendanceRouter.post(
       if (status === 'present' && !photo && !(existing?.status === 'present' && existing.has_photo))
         throw new HttpError(400, 'Foto wajib dilampirkan untuk absen hadir.')
       await conn.query(UPSERT, [req.user.id, day, status, note, req.user.name, 0, photo?.photo ?? null, photo?.thumb ?? null])
+
+      // Log ke Discord (channel absensi), hanya untuk perubahan nyata: absen baru, foto diganti, izin baru/berubah.
+      // Mengirim ulang isian yang sama tidak dicatat lagi. Dikirim setelah transaksi berhasil.
+      const who = [
+        { name: 'Nama', value: `${req.user.name} (@${req.user.username})`, inline: true },
+        { name: 'Role', value: ROLE_LABEL[req.user.role] ?? req.user.role, inline: true },
+      ]
+      if (status === 'present' && photo)
+        sendAttendanceDiscord(conn, {
+          kind: 'attendance_present',
+          title: existing?.status === 'present' ? `${req.user.name} mengganti foto absen` : `${req.user.name} masuk kota`,
+          link: '/attendance',
+          fields: [
+            ...who,
+            { name: 'Waktu', value: fmtClock(), inline: true },
+            { name: 'Tanggal', value: fmtDay(day) },
+            { name: 'Foto', value: 'Terlampir. Lihat di aplikasi: Absensi → Siapa masuk kota.' },
+          ],
+        })
+      else if (status === 'excused' && !(existing?.status === 'excused' && existing.note === note))
+        sendAttendanceDiscord(conn, {
+          kind: 'attendance_excused',
+          title: `${req.user.name} izin`,
+          link: '/attendance',
+          fields: [...who, { name: 'Tanggal izin', value: fmtDay(day) }, { name: 'Keterangan', value: note }],
+        })
     })
     if (Date.now() - lastPurge > PURGE_EVERY_MS)
       void purgeOldPhotos().catch((e) => console.error('Gagal membersihkan foto lama:', e.message))
@@ -260,11 +294,34 @@ attendanceRouter.put(
       const label = `${day} · ${user.name}`
       if (clear) {
         const [r] = await conn.query('DELETE FROM attendance_daily WHERE user_id = ? AND day = ?', [user.id, day])
-        if (r.affectedRows)
+        if (r.affectedRows) {
           await audit(req.user, { entity: 'attendance', id: user.id, label, action: 'clear', details: { dicatat_untuk: user.name } }, conn)
+          sendAttendanceDiscord(conn, {
+            kind: 'attendance_clear',
+            title: `Catatan absensi ${user.name} dihapus`,
+            link: '/attendance',
+            fields: [
+              { name: 'Akun', value: user.name, inline: true },
+              { name: 'Tanggal', value: fmtDay(day), inline: true },
+              { name: 'Dihapus oleh', value: req.user.name, inline: true },
+            ],
+          })
+        }
         return
       }
       await conn.query(UPSERT, [user.id, day, parsed.status, parsed.note, req.user.name, 1, null, null])
+      sendAttendanceDiscord(conn, {
+        kind: 'attendance_staff',
+        title: `Absensi ${user.name} dicatat staff`,
+        link: '/attendance',
+        fields: [
+          { name: 'Akun', value: user.name, inline: true },
+          { name: 'Status', value: parsed.status === 'present' ? 'Hadir (masuk kota)' : 'Izin', inline: true },
+          { name: 'Tanggal', value: fmtDay(day), inline: true },
+          ...(parsed.note ? [{ name: 'Keterangan', value: parsed.note }] : []),
+          { name: 'Dicatat oleh', value: req.user.name, inline: true },
+        ],
+      })
       await audit(
         req.user,
         {
